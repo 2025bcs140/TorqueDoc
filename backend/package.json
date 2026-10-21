@@ -1,0 +1,33 @@
+{
+  "name": "torquedoc-backend",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Express + SQLite API for TorqueDoc: vehicle garage, repair catalog, diagnosis engine and Claude-powered symptom/photo analysis.",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "serve": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/catalog.test.ts test/diagnosisEngine.test.ts test/api.test.ts",
+    "test:watch": "node --import tsx --test --watch test/catalog.test.ts test/diagnosisEngine.test.ts test/api.test.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.23.1",
+    "typescript": "~5.9.0"
+  }
+}

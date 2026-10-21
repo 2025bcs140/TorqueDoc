@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+.expo-export-check/
+dist/
+*.log
+.env
+.env.*
+!.env.example

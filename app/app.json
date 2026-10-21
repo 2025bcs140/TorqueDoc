@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "TorqueDoc",
+    "slug": "torquedoc",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#15181C",
+    "scheme": "torquedoc",
+    "splash": {
+      "backgroundColor": "#15181C"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TorqueDoc can attach existing photos of a vehicle problem to help with diagnosis.",
+          "cameraPermission": "TorqueDoc uses your camera to capture photos or short videos of a vehicle problem so it can help identify the issue.",
+          "microphonePermission": "TorqueDoc can record short videos of a vehicle problem. Audio is not analyzed."
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.torquedoc.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "TorqueDoc uses your camera to capture photos or short videos of a vehicle problem so it can help identify the issue.",
+        "NSPhotoLibraryUsageDescription": "TorqueDoc can attach existing photos of a vehicle problem to help with diagnosis.",
+        "NSMicrophoneUsageDescription": "TorqueDoc can record short videos of a vehicle problem. Audio is not analyzed."
+      }
+    },
+    "android": {
+      "package": "com.torquedoc.app",
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "RECORD_AUDIO"]
+    }
+  }
+}
