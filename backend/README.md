@@ -65,8 +65,13 @@ directory; values already present in the process environment take precedence.
 | `MAX_UPLOAD_MB` | `30` | Multer file-size limit. Photos are additionally capped at 5 MB for the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated allow-list. |
 | `LOG_REQUESTS` | `true` | Set `false` for silent tests/benchmarks. |
+| `API_ACCESS_TOKEN` | empty | Optional shared key for public deployments. When set, all routes except `/` and `/health` require `X-TorqueDoc-Key` or `Authorization: Bearer`. |
+| `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy so rate limiting sees the real client IP. |
+| `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
+| `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for `/v1/*`. |
 
 `backend/.env` and the database files are gitignored. Do not commit real keys.
+For a Docker/Render deployment see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
 
 ## Architecture in one paragraph
 
@@ -184,10 +189,14 @@ MP4/MOV, or attach a photo.
 
 ## Security
 
-- No authentication or rate limiting. Treat this as a trusted-LAN service.
-- Do not expose port 3000 to the internet. If you must, put it behind TLS and
-  add auth, per-user ownership, and AI rate limits first (see
-  `docs/ARCHITECTURE.md`).
+- There are no user accounts. A public deployment is a **single shared garage
+  and history**, even with `API_ACCESS_TOKEN` set.
+- `API_ACCESS_TOKEN` plus per-IP rate limits are an abuse gate for a personal
+  demo, not multi-user authentication. For multiple unrelated users, add login,
+  per-user ownership, and a multi-instance rate limiter (Redis or the host's
+  edge limiter) first.
+- Run public deployments behind HTTPS. Render/Railway terminate TLS for you;
+  a plain Docker host needs a reverse proxy such as Caddy or nginx.
 - Request logs do not include bodies or headers, so keys and uploads are not
   written to the console.
 - Uploaded media is processed in memory/temp files and is not persisted.

@@ -5,13 +5,14 @@
  * - Adds a timeout so a wrong LAN IP fails in a useful way instead of hanging.
  * - Turns non-2xx responses into `ApiError` with the backend's message/code.
  *
- * Every request goes through here; the backend has no authentication because
- * this is a local-network development server. See docs/ARCHITECTURE.md before
- * exposing it beyond your own network.
+ * Every request goes through here. A hosted backend can require the shared
+ * `EXPO_PUBLIC_API_ACCESS_TOKEN`; see docs/ARCHITECTURE.md for why that is an
+ * abuse gate rather than full user authentication.
  */
 
 const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const API_BASE_URL = RAW_BASE_URL.trim().replace(/\/+$/, '') || 'http://localhost:3000';
+const API_ACCESS_TOKEN = (process.env.EXPO_PUBLIC_API_ACCESS_TOKEN ?? '').trim();
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 
@@ -54,7 +55,7 @@ function assertValidBaseUrl(): void {
   if (!/^https?:\/\/\S+$/i.test(API_BASE_URL)) {
     throw new ApiError(
       0,
-      `EXPO_PUBLIC_API_BASE_URL is not a valid URL ("${RAW_BASE_URL}"). It should look like http://192.168.1.23:3000 — no spaces, and include the port.`
+      `EXPO_PUBLIC_API_BASE_URL is not a valid URL ("${RAW_BASE_URL}"). It should look like https://torquedoc-api.onrender.com — no spaces; include a port only if the backend uses one.`
     );
   }
 }
@@ -85,6 +86,9 @@ export async function apiFetch<T>(
         // Only JSON string bodies get this header; FormData must set its own
         // multipart boundary or uploads will fail.
         ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
+        // Public deployments can require a shared key. This value is bundled
+        // into the app, so it is an abuse gate, not user authentication.
+        ...(API_ACCESS_TOKEN ? { 'X-TorqueDoc-Key': API_ACCESS_TOKEN } : {}),
         ...init?.headers,
       },
     });
@@ -97,7 +101,7 @@ export async function apiFetch<T>(
     }
     throw new ApiError(
       0,
-      `Couldn't reach the TorqueDoc server at ${API_BASE_URL}. Is the backend running, and is EXPO_PUBLIC_API_BASE_URL set to your computer's LAN IP (not localhost)?`
+      `Couldn't reach the TorqueDoc server at ${API_BASE_URL}. Check that the backend is online and that EXPO_PUBLIC_API_BASE_URL points to it.`
     );
   } finally {
     clearTimeout(timer);

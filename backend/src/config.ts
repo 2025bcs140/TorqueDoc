@@ -47,6 +47,17 @@ const rawApiKey = readString('ANTHROPIC_API_KEY', '');
 const anthropicApiKey =
   rawApiKey.startsWith('sk-ant-') && rawApiKey.length >= 20 ? rawApiKey : null;
 
+/**
+ * Optional shared key for any internet-facing deployment. When set, every
+ * route except `/` and `/health` requires `X-TorqueDoc-Key` (or a Bearer
+ * token). It is not a replacement for per-user accounts, but it stops a
+ * public URL from being an open proxy to the Anthropic key.
+ */
+const apiAccessToken = readString('API_ACCESS_TOKEN', '');
+if (apiAccessToken.length > 0 && apiAccessToken.length < 16) {
+  throw new Error('API_ACCESS_TOKEN must be at least 16 characters when set');
+}
+
 export const config = {
   env: readString('NODE_ENV', 'development'),
   backendRoot: BACKEND_ROOT,
@@ -60,6 +71,11 @@ export const config = {
   maxUploadMb: readInt('MAX_UPLOAD_MB', 30, 1, 200),
   corsOrigin: readString('CORS_ORIGIN', '*'),
   logRequests: readString('LOG_REQUESTS', 'true') !== 'false',
+
+  apiAccessToken,
+  trustProxy: readString('TRUST_PROXY', 'false') === 'true',
+  rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 240, 10, 10_000),
+  aiRateLimitPerMinute: readInt('AI_RATE_LIMIT_PER_MINUTE', 10, 1, 1_000),
 } as const;
 
 export const MAX_UPLOAD_BYTES = config.maxUploadMb * 1024 * 1024;

@@ -319,7 +319,7 @@ App.tsx
 | Catalog in TypeScript seed, synced by version | Simple content edits; one source of truth | Bump `CATALOG_VERSION` manually; full replace on change |
 | AI outputs symptom ids only | Auditable, deterministic ranking; cheap prompts | Taxonomy must cover the language users actually use |
 | Coverage score | Explainable, no false statistical confidence | One-sign causes look strong; no negative evidence |
-| No auth | Frictionless LAN development | Must never be exposed publicly |
+| Shared-key gate, no user accounts | Frictionless personal/demo deployment | Single shared garage/history; bundled token is not real authentication |
 | Expo SDK 54 pin | Works in public-store Expo Go | Newer SDK features unavailable until Expo Go catches up |
 | Frame extraction, not video upload to model | Claude has no native video input | Audio and motion nuance are lost |
 | No shared types package | Simple Metro/TS setup | Backend and app type definitions must be kept in sync manually |
@@ -328,9 +328,16 @@ App.tsx
 
 ## Security and operational notes
 
-- API has no authentication or rate limiting. It is a trusted-LAN tool. Before
-  exposing it, add: TLS termination, bearer auth or sessions, per-user vehicle
-  ownership, rate limits on AI endpoints, and a strict CORS allow-list.
+- A public deployment should set `API_ACCESS_TOKEN`. It gates every route
+  except `/` and `/health`, and the app sends it in `X-TorqueDoc-Key`. Because
+  the value is bundled into the mobile app, it is an abuse gate, not user
+  authentication. There is still **one shared garage/history**.
+- Per-IP rate limits are in-process (240 requests/min, 10 AI requests/min by
+  default). A multi-instance deployment must move them to Redis or the host's
+  edge limiter.
+- For multiple unrelated users, add login, per-user vehicle ownership, a
+  multi-instance rate limiter, and preferably PostgreSQL instead of a single
+  SQLite file. See `docs/DEPLOYMENT.md`.
 - The API key is never returned by any endpoint. Logs contain method, path,
   status and duration only — not bodies or headers.
 - Error responses in production hide internal messages; the full error is logged

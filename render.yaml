@@ -1,0 +1,40 @@
+# Render Blueprint for the TorqueDoc API.
+#
+# The free plan is enough to try the app from Expo Go, but its filesystem is
+# ephemeral: garage/history records reset when the service redeploys or wakes
+# from sleep. For durable data, upgrade the plan and uncomment the disk block
+# below (a persistent disk requires a paid instance type).
+services:
+  - type: web
+    name: torquedoc-api
+    runtime: docker
+    region: oregon
+    plan: free
+    branch: main
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/torquedoc.db
+      - key: TRUST_PROXY
+        value: "true"
+      # Generated once by Render. Copy it into app/.env as
+      # EXPO_PUBLIC_API_ACCESS_TOKEN before building the app.
+      - key: API_ACCESS_TOKEN
+        generateValue: true
+      # Set this in the Render dashboard; leave it unset to keep AI disabled.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: LOG_REQUESTS
+        value: "true"
+    # disk:
+    #   name: torquedoc-data
+    #   mountPath: /data
+    #   sizeGB: 1

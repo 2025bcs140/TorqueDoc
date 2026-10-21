@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { db } from './db';
+import { accessTokenGuard } from './middleware/accessToken';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { aiRateLimiter, apiRateLimiter } from './middleware/rateLimit';
 import { requestLogger } from './middleware/requestLogger';
 import vehiclesRouter from './routes/vehicles';
 import catalogRouter from './routes/catalog';
@@ -20,11 +22,16 @@ import { isFfmpegAvailable } from './services/videoFrames';
 export function createApp(): express.Express {
   const app = express();
 
+  if (config.trustProxy) app.set('trust proxy', 1);
+
   app.disable('x-powered-by');
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
+    if (config.env === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    }
     next();
   });
 
@@ -86,6 +93,12 @@ export function createApp(): express.Express {
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
+
+  // `/` and `/health` stay public so hosting health checks work without a
+  // secret. Everything below this line is gated when API_ACCESS_TOKEN is set.
+  app.use(accessTokenGuard);
+  app.use(apiRateLimiter);
+  app.use('/v1', aiRateLimiter);
 
   app.use('/vehicles', vehiclesRouter);
   // These routers declare their own full paths (/symptoms, /diagnose, …).

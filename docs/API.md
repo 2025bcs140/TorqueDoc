@@ -1,12 +1,16 @@
 # TorqueDoc API reference
 
-Base URL during local development: `http://<your-LAN-IP>:3000`. The server binds
-to `0.0.0.0`, so a phone on the same network can reach it.
+Base URL during local development: `http://<your-LAN-IP>:3000`. A hosted
+deployment uses its HTTPS URL. The server binds to `0.0.0.0`, so a phone on the
+same network can reach it.
 
 - JSON request bodies use `Content-Type: application/json`.
 - Media uploads use `multipart/form-data`.
 - Timestamps are ISO 8601 UTC strings.
-- There is no authentication: this is a trusted-LAN development server.
+- When the backend sets `API_ACCESS_TOKEN`, every route except `/` and `/health`
+  requires the header `X-TorqueDoc-Key: <token>` (or `Authorization: Bearer
+  <token>`). The app sends it automatically.
+- `/health` is deliberately public so hosting platforms can probe it.
 
 ## Errors
 
@@ -27,7 +31,9 @@ Every error response has the same shape:
 | 400 | `VALIDATION_ERROR` | Bad/missing field, unknown id, wrong vehicle type, or duplicate symptoms. |
 | 400 | `INVALID_JSON` | Body is not valid JSON. |
 | 400 | `UPLOAD_ERROR` | Multipart parsing failed (unexpected field or too many files). |
+| 401 | `UNAUTHORIZED` | Missing/wrong shared key when `API_ACCESS_TOKEN` is configured. |
 | 404 | `NOT_FOUND` | No route, vehicle, guide or diagnosis with that id. |
+| 429 | `RATE_LIMITED` | Per-IP request or AI rate limit exceeded. Check `Retry-After`. |
 | 413 | `FILE_TOO_LARGE` | Upload exceeds `MAX_UPLOAD_MB` (default 30 MB). |
 | 413 | `PHOTO_TOO_LARGE` | Photo exceeds the vision API's 5 MB per-image limit. |
 | 413 | `PAYLOAD_TOO_LARGE` | JSON body exceeds 1 MB. |

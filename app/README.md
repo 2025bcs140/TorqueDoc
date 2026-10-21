@@ -36,13 +36,20 @@ simulator.
 
 ### Set the backend URL
 
-`app/.env`:
+Hosted backend (works from Expo Go anywhere):
+
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=https://your-service.onrender.com
+EXPO_PUBLIC_API_ACCESS_TOKEN=the-backend-shared-key
+```
+
+Same-Wi-Fi development against `npm run dev`:
 
 ```dotenv
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.23:3000
 ```
 
-This must be your computer's **LAN IP**, not `localhost`, and it must include
+For the LAN option, use your computer's **LAN IP**, not `localhost`, and include
 the port. Find it with:
 
 - **Windows:** `ipconfig` — use the IPv4 address on the adapter connected to the
@@ -58,9 +65,9 @@ allow Node.js through the Windows firewall on port 3000.
 after changing `.env` (and reload the app). If the URL is malformed, the app
 shows a clear error instead of a generic network failure.
 
-The example file uses `192.168.1.23`; replace it with your own address. The
-local `.env` on this machine (gitignored) is set to its current address for
-convenience.
+The token is bundled into the app. It stops a public URL from being an open AI
+proxy, but it is not user authentication. See
+[`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for hosting instructions.
 
 ## What's in the app
 
@@ -194,28 +201,30 @@ npx expo export --platform android   # production Metro bundle, no device needed
 There is no Jest/Detox suite yet; the backend has the automated tests. See the
 root README for the full verification commands.
 
-`npx expo-doctor` currently reports 17/18 on this copy: its ".expo directory is
-not ignored by Git" check calls `git check-ignore`, and this folder is not a Git
-repository. `app/.gitignore` already lists `.expo/`; running `git init` makes the
-check pass. Everything else, including SDK/package alignment, passes.
+`npx expo-doctor` should pass all checks on a fresh clone. If it flags `.expo`
+after a local run, confirm `app/.gitignore` still contains `.expo/`.
 
 ## Troubleshooting
 
-**“Couldn't reach the TorqueDoc server at http://…”**
+**“Couldn't reach the TorqueDoc server at https://…”**
 The message includes the exact URL. Check:
 
-1. The backend is running (`cd ../backend && npm run dev`).
-2. `.env` uses the computer's LAN IP, not `localhost`.
-3. The URL includes `:3000` (or whatever `PORT` the backend uses).
-4. Phone and computer are on the same Wi-Fi.
-5. Windows firewall allows Node.js on port 3000.
-6. Expo was restarted after editing `.env`.
-7. `Invoke-RestMethod http://<IP>:3000/health` works from the computer; try the
-   same URL in the phone's browser.
+1. The hosted backend is running and `/health` returns 200 in a browser.
+2. `EXPO_PUBLIC_API_BASE_URL` is HTTPS and has no trailing slash.
+3. `EXPO_PUBLIC_API_ACCESS_TOKEN` matches the backend's `API_ACCESS_TOKEN`
+   (when one is configured).
+4. Expo was restarted after editing `.env`; public env values are baked in.
+5. If using a LAN backend instead: the phone and computer are on the same
+   Wi-Fi, the URL uses the computer's LAN IP (not `localhost`), includes the
+   port, and the firewall allows Node on that port.
 
 **Works in a simulator but not on a phone**
-The simulator shares the computer's network, so `localhost` works there but not
-on a physical phone. Use the LAN IP for both to avoid surprises.
+A simulator can reach the host's `localhost`; a physical phone cannot. Use a
+hosted HTTPS URL, or the computer's LAN IP, for the phone.
+
+**401 UNAUTHORIZED**
+The app's `EXPO_PUBLIC_API_ACCESS_TOKEN` does not match the backend's
+`API_ACCESS_TOKEN`. Copy the exact value and restart Expo.
 
 **“Project is incompatible with this version of Expo Go”**
 This project is SDK 54. Update/force-close Expo Go, confirm
