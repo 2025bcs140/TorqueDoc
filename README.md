@@ -71,34 +71,40 @@ npm run dev                   # http://localhost:3000
 cd app
 npm install
 cp .env.example .env          # Windows: copy .env.example .env
-# edit .env: EXPO_PUBLIC_API_BASE_URL=http://<your-LAN-IP>:3000
+# edit .env: use the hosted URL or http://<your-LAN-IP>:3000
 npx expo start
 ```
 
 Then scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 
-### Why the LAN IP, not localhost?
+### Hosted backend (recommended) or same Wi-Fi?
 
-Expo Go runs on your phone, not your computer. `localhost` in the app would
-point at the phone itself. Find your computer's active IPv4 address:
+A hosted backend lets Expo Go work anywhere, not only on the same Wi-Fi as the
+development machine. This repository includes a Render Blueprint and a Docker
+image; the reviewed API for this copy is live at
+`https://torquedoc-api.onrender.com`. Deployment steps, costs, and the free-plan
+persistence caveat are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
-- **Windows:** `ipconfig` — look for "IPv4 Address" on the adapter connected to
-  the same Wi-Fi as the phone. Ignore VirtualBox/Hyper-V adapters.
-- **macOS:** `ipconfig getifaddr en0`
-- **Linux:** `hostname -I`
+Point the app at it in `app/.env`:
 
-Put it in `app/.env`, including the scheme and port:
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com
+EXPO_PUBLIC_API_ACCESS_TOKEN=<the backend API_ACCESS_TOKEN>
+```
+
+For local development instead, run `npm run dev` in `backend/` and use the
+computer's active IPv4 address (Windows `ipconfig`, macOS
+`ipconfig getifaddr en0`, Linux `hostname -I`), not `localhost`:
 
 ```dotenv
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.23:3000
 ```
 
-Both devices must be on the same network, and the Windows firewall must allow
-Node.js on port 3000 the first time you run it. Restart Expo after editing
-`.env`; `EXPO_PUBLIC_*` values are inlined at bundle time.
-
-If the app can't reach the backend, it shows the actual base URL it tried, so
-you can spot a stale IP quickly.
+Expo Go runs on the phone, so `localhost` would point at the phone itself. Both
+devices must be on the same network, and the firewall must allow Node on port
+3000. Restart Expo after editing `.env`; `EXPO_PUBLIC_*` values are inlined at
+bundle time. If the app cannot reach the backend, it shows the exact base URL it
+tried.
 
 ## Configuration
 
@@ -114,12 +120,17 @@ Backend (`backend/.env`):
 | `MAX_UPLOAD_MB` | `30` | Overall photo/video upload limit; photos are capped at 5 MB by the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated origin allow-list. |
 | `LOG_REQUESTS` | `true` | One-line request log. |
+| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/` and `/health`. |
+| `TRUST_PROXY` | `false` | Set `true` behind Render/Railway so rate limiting sees the real client IP. |
+| `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
+| `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for the AI endpoints. |
 
 App (`app/.env`):
 
 | Variable | Purpose |
 |---|---|
 | `EXPO_PUBLIC_API_BASE_URL` | Backend base URL reachable from the phone. |
+| `EXPO_PUBLIC_API_ACCESS_TOKEN` | Must match the backend's `API_ACCESS_TOKEN` when configured. Bundled into the app, so it is an abuse gate, not user authentication. |
 
 ## API at a glance
 
@@ -197,10 +208,16 @@ npx expo export --platform android
 
 ## Troubleshooting
 
-**"Couldn't reach the TorqueDoc server at http://…"**
-The app prints the exact URL. Check the backend is running, the IP is the
-computer's current LAN IP (not `localhost`), the port is included, both devices
-are on the same Wi-Fi, and the firewall allows Node on port 3000.
+**"Couldn't reach the TorqueDoc server at https://…"**
+The app prints the exact URL. Check the hosted backend is awake and `/health`
+returns 200. If you use a LAN backend instead, confirm the IP is the computer's
+current address (not `localhost`), the port is included, both devices are on the
+same Wi-Fi, and the firewall allows Node on port 3000.
+
+**401 UNAUTHORIZED**
+`EXPO_PUBLIC_API_ACCESS_TOKEN` does not match the backend's
+`API_ACCESS_TOKEN`. Copy the exact value and restart Expo; public env values are
+baked into the bundle.
 
 **"Project is incompatible with this version of Expo Go"**
 This project is pinned to SDK 54, the version the public-store Expo Go app
@@ -228,18 +245,31 @@ Run `npx expo install --fix` to snap packages to the SDK 54 set, then
 `npx expo-doctor`. `babel-preset-expo` is intentionally an explicit
 devDependency so npm hoists one shared copy.
 
+## Deployment
+
+The repository includes `render.yaml` (a Render Blueprint) and
+`backend/Dockerfile` (Node 24 with ffmpeg). The reviewed public API for this
+copy is live at `https://torquedoc-api.onrender.com`; `app/.env` points at it.
+Step-by-step instructions, environment variables, persistence caveats, and EAS
+build notes are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Security and privacy
 
 - The Anthropic key is read only by the backend and is never bundled into the
   app or returned by an endpoint.
-- There is **no authentication** on the API. It is designed for a trusted
-  local network. Do not expose port 3000 to the internet; see
-  `docs/ARCHITECTURE.md` for what to add first if you need to.
+- A public deployment can require `API_ACCESS_TOKEN`, a shared key checked on
+  every route except `/` and `/health`, plus per-IP rate limits. The app bundles
+  the key, so this is an abuse gate, **not user authentication**.
+- The API still has **one shared garage and history**. Do not invite multiple
+  unrelated users until login and per-user ownership are added.
+- Render's free filesystem is ephemeral; garage/history data resets on redeploy
+  or wake. Attach a paid disk or use a host with persistent storage for durable
+  records. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 - Uploaded media is held in memory, sent to Anthropic, and not persisted by
   this backend. Diagnosis records store symptom ids and cause labels, not the
   media.
 - AI calls only happen when the user chooses an AI-assisted option. The
-  checklist never leaves the local backend.
+  checklist never leaves the backend.
 - The SQLite database and `.env` files are gitignored.
 
 ## Project layout
@@ -253,11 +283,13 @@ TorqueDoc/
 │   │   ├── config.ts              env parsing/validation
 │   │   ├── db.ts                  schema, catalog sync, queries
 │   │   ├── http.ts                validation helpers + HttpError
-│   │   ├── middleware/            request log, error boundary
+│   │   ├── middleware/            access key, rate limit, request log, errors
 │   │   ├── routes/                vehicles, catalog, diagnose, diagnoses, AI
 │   │   ├── services/              diagnosis engine, Claude client, ffmpeg
 │   │   └── data/catalog.ts        seed symptoms/causes/repair guides
-│   └── test/                      node:test unit + integration tests
+│   ├── test/                      node:test unit + integration tests
+│   ├── Dockerfile                 production image (Node 24 + ffmpeg)
+│   └── .dockerignore
 ├── app/
 │   ├── App.tsx                    providers + navigation + error boundary
 │   └── src/
@@ -270,7 +302,9 @@ TorqueDoc/
 │       └── types/                 shared API types
 ├── docs/
 │   ├── API.md                     endpoint reference
-│   └── ARCHITECTURE.md            design decisions and data flow
+│   ├── ARCHITECTURE.md            design decisions and data flow
+│   └── DEPLOYMENT.md              Render, Docker, env, EAS
+├── render.yaml                   Render Blueprint (free demo)
 ├── README.md
 └── .gitignore
 ```
