@@ -14,7 +14,10 @@ const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const API_BASE_URL = RAW_BASE_URL.trim().replace(/\/+$/, '') || 'http://localhost:3000';
 const API_ACCESS_TOKEN = (process.env.EXPO_PUBLIC_API_ACCESS_TOKEN ?? '').trim();
 
-const DEFAULT_TIMEOUT_MS = 20_000;
+// A free Render instance can take 50+ seconds to wake from sleep. Keep the
+// normal timeout generous enough for that first request, while AI calls get
+// their own, longer budget below.
+const DEFAULT_TIMEOUT_MS = 75_000;
 
 /** AI calls legitimately take longer than a normal CRUD request. */
 export const AI_TIMEOUT_MS = 90_000;

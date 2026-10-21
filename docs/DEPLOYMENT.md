@@ -44,7 +44,9 @@ upgrade the service to a paid instance and uncomment the disk block in
 `render.yaml` (or attach a 1 GB disk mounted at `/data` in the dashboard).
 
 The free instance also spins down after a period of inactivity, so the first
-request after a nap is slower.
+request after a nap is slower. The app waits up to 75 seconds for normal calls
+and 90 seconds for AI calls to cover that cold start; a paid instance or a host
+without spin-down removes the delay.
 
 ## Option B — any Docker host
 

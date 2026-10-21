@@ -69,6 +69,10 @@ The token is bundled into the app. It stops a public URL from being an open AI
 proxy, but it is not user authentication. See
 [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for hosting instructions.
 
+A free Render instance sleeps after inactivity, so the first request can take
+50 seconds or more. Normal requests wait up to 75 seconds; AI requests wait up
+to 90 seconds. A paid instance or a host without spin-down removes that delay.
+
 ## What's in the app
 
 ### Screens
