@@ -7,15 +7,14 @@ TorqueDoc has three deployable pieces:
 2. **`app/` (mobile)** — the Expo client. Expo Go can load it from a development
    server, or Gradle/EAS can produce a standalone Android build. Its API URL is
    baked in at bundle time, so deploy the backend first.
-3. **`app/` (web)** — the same Expo client exported for browsers. The Render
-   Blueprint builds this as the static site `torquedoc-web`, which needs no
-   local Metro server or phone install.
+3. **`app/` (web)** — the same Expo client exported for browsers and served by
+   the API at `/app`. It needs no local Metro server or phone install.
 
 The repository includes `render.yaml` for a one-click Render Blueprint and
 `backend/Dockerfile` for any Docker host. The optional `API_ACCESS_TOKEN` gate
 and in-process rate limiter are intended for a personal/demo deployment, not a
-multi-tenant product. The token is embedded in the APK and static web bundle,
-so treat it as an abuse gate, not as a user login.
+multi-tenant product. The token is embedded in the APK and injected into the web
+HTML at request time, so treat it as an abuse gate, not as a user login.
 
 ## Option A — Render Blueprint
 
@@ -152,8 +151,24 @@ A healthy response looks like:
 
 ## Building the app for stores
 
-Expo Go is enough for testing, but it is not a deployed app binary. To produce
-an installable build, configure an Expo account and EAS:
+Expo Go is enough for testing, but it is not a deployed app binary. You can
+build a direct-install APK locally with Gradle (no Expo account needed):
+
+```bash
+cd app
+npx expo prebuild --platform android
+# make sure app/.env has the hosted API URL and token
+cd android
+./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+The APK is written to
+`app/android/app/build/outputs/apk/release/app-release.apk`. The generated
+Android project uses the template debug keystore for release signing, so this is
+a demo build, not a Play Store upload. The current build is published on the
+repository's **Releases** page.
+
+Alternatively, configure EAS:
 
 ```bash
 cd app
