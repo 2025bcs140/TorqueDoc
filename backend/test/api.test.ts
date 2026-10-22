@@ -90,7 +90,14 @@ test('TorqueDoc API', async (t) => {
       redirect: 'manual',
     });
     assert.equal(root.status, 302);
-    assert.equal(root.headers.get('location'), '/dashboard');
+    assert.ok(['/app', '/dashboard'].includes(root.headers.get('location') ?? ''));
+
+    const web = await fetch(`${baseUrl}/app`, { headers: { accept: 'text/html' } });
+    if (web.status === 200) {
+      assert.match(await web.text(), /__TORQUEDOC_CONFIG__/);
+    } else {
+      assert.equal(web.status, 404);
+    }
   });
 
   await t.test('catalog filters by vehicle type', async () => {

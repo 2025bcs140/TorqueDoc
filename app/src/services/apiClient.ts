@@ -10,9 +10,25 @@
  * abuse gate rather than full user authentication.
  */
 
-const RAW_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+interface RuntimeConfig {
+  apiBaseUrl?: string;
+  apiAccessToken?: string;
+}
+
+// The static web build is served by the API itself. Express injects this object
+// into index.html at request time so the shared key is not baked into the
+// committed bundle; native builds continue to use EXPO_PUBLIC_* values.
+const runtimeConfig = (globalThis as { __TORQUEDOC_CONFIG__?: RuntimeConfig })
+  .__TORQUEDOC_CONFIG__;
+
+const RAW_BASE_URL =
+  runtimeConfig?.apiBaseUrl ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const API_BASE_URL = RAW_BASE_URL.trim().replace(/\/+$/, '') || 'http://localhost:3000';
-const API_ACCESS_TOKEN = (process.env.EXPO_PUBLIC_API_ACCESS_TOKEN ?? '').trim();
+const API_ACCESS_TOKEN = (
+  runtimeConfig?.apiAccessToken ??
+  process.env.EXPO_PUBLIC_API_ACCESS_TOKEN ??
+  ''
+).trim();
 
 // A free Render instance can take 50+ seconds to wake from sleep. Keep the
 // normal timeout generous enough for that first request, while AI calls get

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config';
@@ -47,10 +49,22 @@ export function createApp(): express.Express {
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
 
+  // The Expo web export is served from this process so the browser client has
+  // the same origin as the API (no CORS, no separate static-site service). It is
+  // built without a token; the token is injected into /app's HTML at request
+  // time below. `index: false` keeps `/` free for the API index/redirect.
+  const webDist = path.join(__dirname, '..', 'web-dist');
+  const webIndex = path.join(webDist, 'index.html');
+  const hasWebBuild = existsSync(webIndex);
+
+  if (hasWebBuild) {
+    app.use(express.static(webDist, { index: false, maxAge: '1h' }));
+  }
+
   app.get('/', (req, res) => {
-    // Browsers get the human dashboard; API clients still get the JSON index.
+    // Browsers get the full web client; API clients still get the JSON index.
     if ((req.headers.accept ?? '').includes('text/html')) {
-      res.redirect('/dashboard');
+      res.redirect(hasWebBuild ? '/app' : '/dashboard');
       return;
     }
 
@@ -58,6 +72,7 @@ export function createApp(): express.Express {
       name: 'TorqueDoc API',
       version: '0.2.0',
       docs: 'See docs/API.md in the repository',
+      webApp: 'GET /app',
       dashboard: 'GET /dashboard',
       endpoints: {
         health: 'GET /health',
@@ -83,6 +98,18 @@ export function createApp(): express.Express {
   app.get(['/dashboard', '/dashboard/'], (_req, res) => {
     res.type('html').send(renderDashboard(config.apiAccessToken));
   });
+
+  if (hasWebBuild) {
+    app.get(['/app', '/app/'], (_req, res) => {
+      const token = JSON.stringify(config.apiAccessToken).replace(/</g, '\\u003c');
+      const html = readFileSync(webIndex, 'utf8').replace(
+        '</head>',
+        `<script>window.__TORQUEDOC_CONFIG__ = { apiBaseUrl: window.location.origin, apiAccessToken: ${token} };</script></head>`
+      );
+      res.setHeader('Cache-Control', 'no-store');
+      res.type('html').send(html);
+    });
+  }
 
   /**
    * Liveness + capability probe. The mobile app does not poll this, but it is

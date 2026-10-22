@@ -7,12 +7,14 @@ same network can reach it.
 - JSON request bodies use `Content-Type: application/json`.
 - Media uploads use `multipart/form-data`.
 - Timestamps are ISO 8601 UTC strings.
-- When the backend sets `API_ACCESS_TOKEN`, every route except `/`, `/dashboard`
-  and `/health` requires the header `X-TorqueDoc-Key: <token>` (or
+- When the backend sets `API_ACCESS_TOKEN`, every route except `/`, `/app`,
+  `/dashboard` and `/health` requires the header `X-TorqueDoc-Key: <token>` (or
   `Authorization: Bearer <token>`). The app sends it automatically.
 - `/health` is deliberately public so hosting platforms can probe it.
-- `/dashboard` is a public, dependency-free browser page that embeds the shared
-  key for its same-origin calls. It is an owner/demo tool, not user auth.
+- `/app` is the Expo web client. Its static assets are public; Express injects
+  the shared key into the HTML at request time. `/dashboard` is a public,
+  dependency-free owner page that does the same. Both are demo/owner tools, not
+  user authentication.
 
 ## Errors
 
@@ -69,8 +71,14 @@ The check is cached for the life of the process.
 ### `GET /`
 
 A small JSON index of routes. Browsers (requests whose `Accept` header includes
-`text/html`) are redirected to `/dashboard` instead, so opening the base URL
-does not dump raw JSON at a non-developer.
+`text/html`) are redirected to `/app` (or `/dashboard` if no web build is
+present), so opening the base URL does not dump raw JSON at a non-developer.
+
+### `GET /app`
+
+The Expo web client. It is served from `backend/web-dist` when present. The HTML
+contains a small `window.__TORQUEDOC_CONFIG__` block with the same-origin API
+URL and the shared key, injected by the server at request time.
 
 ---
 

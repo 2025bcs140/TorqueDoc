@@ -21,17 +21,16 @@ so treat it as an abuse gate, not as a user login.
 
 1. In the Render dashboard, choose **New → Blueprint**.
 2. Connect the GitHub repository and select the `main` branch.
-3. Render reads `render.yaml`, creates the API service `torquedoc-api`, the
-   static web client `torquedoc-web`, and generates `API_ACCESS_TOKEN`.
-4. Add `ANTHROPIC_API_KEY` in the API service's **Environment** tab if you want
-   the free-text, photo and video features. Leave it unset to keep the AI routes
+3. Render reads `render.yaml`, creates the API service `torquedoc-api`, and
+   generates `API_ACCESS_TOKEN`. The browser client is served by the same
+   service at `/app`.
+4. Add `ANTHROPIC_API_KEY` in the service's **Environment** tab if you want the
+   free-text, photo and video features. Leave it unset to keep the AI routes
    disabled with a clear `503`.
-5. Wait for the API health check at `/health` to pass. The public URLs are
-   normally `https://torquedoc-api.onrender.com` and
-   `https://torquedoc-web.onrender.com`.
+5. Wait for the API health check at `/health` to pass. The public URL is
+   normally `https://torquedoc-api.onrender.com`.
 6. Copy the generated `API_ACCESS_TOKEN` value from Render if you are building
-   the mobile app yourself. The static web build receives the same value through
-   the Blueprint's `fromService` reference.
+   the mobile app yourself.
 7. In `app/.env`:
 
    ```dotenv
@@ -44,20 +43,32 @@ so treat it as an abuse gate, not as a user login.
 
 ### Hosted web client and dashboard
 
-Once the Blueprint sync completes:
+Once the service is live:
 
-- The full app is at `https://torquedoc-web.onrender.com`. It uses the same
+- The full app is at `https://torquedoc-api.onrender.com/app`. It uses the same
   garage, checklist, diagnosis, history and repair-guide flows as the phone app.
-- The API also serves a lightweight owner dashboard at
+- A lightweight owner dashboard is at
   `https://torquedoc-api.onrender.com/dashboard`.
-- Opening `https://torquedoc-api.onrender.com/` in a browser redirects to that
-  dashboard. API clients that request JSON still receive the route index.
+- Opening `https://torquedoc-api.onrender.com/` in a browser redirects to
+  `/app`. API clients that request JSON still receive the route index.
 
-The static site is rebuilt whenever `app/` changes. If you rotate
-`API_ACCESS_TOKEN`, trigger a new web deploy so the new token is baked into the
-bundle. Free static sites and free web services are separate Render resources;
-the static site stays available even when the API service is waking up, but its
-first data request still waits for the API cold start.
+The browser build is committed in `backend/web-dist` so the Docker image can
+serve it without a separate static-site service. Express injects the shared API
+token into `/app`'s HTML at request time; the token is not in the bundle. To
+rebuild it after changing the app:
+
+```bash
+cd app
+EXPO_NO_DOTENV=1 npx expo export --platform web --output-dir dist-runtime
+# Windows PowerShell: $env:EXPO_NO_DOTENV='1'
+rm -rf ../backend/web-dist          # Windows: Remove-Item ..\backend\web-dist -Recurse -Force
+cp -R dist-runtime ../backend/web-dist
+```
+
+Build without `.env` so the bundle does not bake in a token. Rebuild after
+changing `app/` code, then commit `backend/web-dist` and redeploy the API. If you
+rotate `API_ACCESS_TOKEN`, only a restart/redeploy is needed; the new value is
+read from the server environment at request time.
 
 ### Important: free-plan persistence
 

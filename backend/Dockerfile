@@ -22,6 +22,7 @@ ENV NODE_ENV=production \
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY web-dist ./web-dist
 COPY package.json ./
 
 RUN mkdir -p /data

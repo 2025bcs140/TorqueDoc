@@ -3,6 +3,7 @@ node_modules/
 .expo-export-check/
 dist/
 dist-web/
+dist-runtime/
 android/
 ios/
 *.log

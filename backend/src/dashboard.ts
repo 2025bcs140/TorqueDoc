@@ -220,7 +220,7 @@ export function renderDashboard(apiAccessToken: string): string {
   <div class="top-actions">
     <span class="pill"><span class="dot" id="apiDot"></span><span id="apiStatus">Connecting…</span></span>
     <span class="pill" id="aiPill">AI checking…</span>
-    <a class="pill" href="https://torquedoc-web.onrender.com" target="_blank" rel="noreferrer">Open full app ↗</a>
+    <a class="pill" href="/app" target="_blank" rel="noreferrer">Open full app ↗</a>
     <a class="pill" href="https://github.com/2025bcs140/TorqueDoc" target="_blank" rel="noreferrer">GitHub ↗</a>
   </div>
 </header>

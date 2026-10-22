@@ -38,22 +38,3 @@ services:
     #   name: torquedoc-data
     #   mountPath: /data
     #   sizeGB: 1
-
-  # The full Expo app, exported as a static web client. This is the easiest way
-  # to try TorqueDoc in a browser without installing the APK. The API token is
-  # copied from the API service at Blueprint sync time and baked into the
-  # bundle, exactly like the mobile build (it is an abuse gate, not user auth).
-  - type: web
-    name: torquedoc-web
-    runtime: static
-    branch: main
-    buildCommand: cd app && npm ci && npx expo export --platform web --output-dir dist
-    staticPublishPath: ./app/dist
-    envVars:
-      - key: EXPO_PUBLIC_API_BASE_URL
-        value: https://torquedoc-api.onrender.com
-      - key: EXPO_PUBLIC_API_ACCESS_TOKEN
-        fromService:
-          name: torquedoc-api
-          type: web
-          envVarKey: API_ACCESS_TOKEN
