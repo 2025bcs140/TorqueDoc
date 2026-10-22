@@ -1,4 +1,7 @@
 node_modules
+# Generated Expo font/navigation assets live under an assets/node_modules path.
+!web-dist/assets/**/node_modules/
+!web-dist/assets/**/node_modules/**
 dist
 coverage
 test
