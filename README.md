@@ -7,6 +7,17 @@ and get a ranked list of probable causes with a step-by-step repair guide.
 Trailers are intentionally out of scope: they don't have an engine to diagnose
 in this sense and would need a different inspection-checklist product.
 
+## Try it now
+
+- **Browser app:** <https://torquedoc-api.onrender.com/app>
+- **Owner dashboard:** <https://torquedoc-api.onrender.com/dashboard>
+- **Android APK:** [latest release](https://github.com/2025bcs140/TorqueDoc/releases/latest)
+
+The browser client is the same Expo app exported for web and is served by the
+API service; no local Metro server is needed. The dashboard is a small
+dependency-free client for the same garage and diagnosis API.
+
+
 ```
 ┌─────────────────────────────┐        HTTP/JSON        ┌──────────────────────────────┐
 │  app/ — Expo / React Native │  ────────────────────▶  │  backend/ — Express 5        │
@@ -138,6 +149,8 @@ Full reference with request/response examples: [`docs/API.md`](docs/API.md).
 
 ```
 GET    /health
+GET    /app
+GET    /dashboard
 GET    /vehicles
 POST   /vehicles
 GET    /vehicles/:id
