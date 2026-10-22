@@ -120,7 +120,7 @@ Backend (`backend/.env`):
 | `MAX_UPLOAD_MB` | `30` | Overall photo/video upload limit; photos are capped at 5 MB by the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated origin allow-list. |
 | `LOG_REQUESTS` | `true` | One-line request log. |
-| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/` and `/health`. |
+| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/`, `/app`, `/dashboard` and `/health`. |
 | `TRUST_PROXY` | `false` | Set `true` behind Render/Railway so rate limiting sees the real client IP. |
 | `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
 | `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for the AI endpoints. |
@@ -138,6 +138,8 @@ Full reference with request/response examples: [`docs/API.md`](docs/API.md).
 
 ```
 GET    /health
+GET    /app
+GET    /dashboard
 GET    /vehicles
 POST   /vehicles
 GET    /vehicles/:id
