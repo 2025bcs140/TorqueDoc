@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# The Expo web export stores vector-icon fonts under an assets/node_modules
+# path. Keep those generated font files in git; only ignore real dependencies.
+!web-dist/assets/**/node_modules/
+!web-dist/assets/**/node_modules/**
 .env
 .env.*
 !.env.example
