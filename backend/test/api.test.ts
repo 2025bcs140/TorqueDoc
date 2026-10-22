@@ -77,6 +77,22 @@ test('TorqueDoc API', async (t) => {
     assert.ok(body.endpoints.diagnose);
   });
 
+  await t.test('browser dashboard and root redirect work without the API key', async () => {
+    const dashboard = await fetch(`${baseUrl}/dashboard`, {
+      headers: { accept: 'text/html' },
+    });
+    assert.equal(dashboard.status, 200);
+    assert.match(dashboard.headers.get('content-type') ?? '', /text\/html/);
+    assert.match(await dashboard.text(), /Garage dashboard/);
+
+    const root = await fetch(`${baseUrl}/`, {
+      headers: { accept: 'text/html' },
+      redirect: 'manual',
+    });
+    assert.equal(root.status, 302);
+    assert.equal(root.headers.get('location'), '/dashboard');
+  });
+
   await t.test('catalog filters by vehicle type', async () => {
     const car = await api('/symptoms?vehicleType=car');
     assert.equal(car.status, 200);

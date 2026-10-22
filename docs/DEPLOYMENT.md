@@ -1,30 +1,37 @@
 # Deployment
 
-TorqueDoc has two deployable pieces:
+TorqueDoc has three deployable pieces:
 
 1. **`backend/`** — the Express API, SQLite database, diagnosis engine and the
    only place the Anthropic key is read. This must be reachable from the phone.
-2. **`app/`** — the Expo client. Expo Go can load it from a development server,
-   or EAS can produce standalone Android/iOS builds. Its API URL is baked in at
-   bundle time, so deploy the backend first.
+2. **`app/` (mobile)** — the Expo client. Expo Go can load it from a development
+   server, or Gradle/EAS can produce a standalone Android build. Its API URL is
+   baked in at bundle time, so deploy the backend first.
+3. **`app/` (web)** — the same Expo client exported for browsers. The Render
+   Blueprint builds this as the static site `torquedoc-web`, which needs no
+   local Metro server or phone install.
 
 The repository includes `render.yaml` for a one-click Render Blueprint and
 `backend/Dockerfile` for any Docker host. The optional `API_ACCESS_TOKEN` gate
 and in-process rate limiter are intended for a personal/demo deployment, not a
-multi-tenant product.
+multi-tenant product. The token is embedded in the APK and static web bundle,
+so treat it as an abuse gate, not as a user login.
 
 ## Option A — Render Blueprint
 
 1. In the Render dashboard, choose **New → Blueprint**.
 2. Connect the GitHub repository and select the `main` branch.
-3. Render reads `render.yaml`, creates `torquedoc-api`, and generates
-   `API_ACCESS_TOKEN`.
-4. Add `ANTHROPIC_API_KEY` in the service's **Environment** tab if you want the
-   free-text, photo and video features. Leave it unset to keep the AI routes
+3. Render reads `render.yaml`, creates the API service `torquedoc-api`, the
+   static web client `torquedoc-web`, and generates `API_ACCESS_TOKEN`.
+4. Add `ANTHROPIC_API_KEY` in the API service's **Environment** tab if you want
+   the free-text, photo and video features. Leave it unset to keep the AI routes
    disabled with a clear `503`.
-5. Wait for the health check at `/health` to pass. Copy the public HTTPS URL,
-   for example `https://torquedoc-api.onrender.com`.
-6. Copy the generated `API_ACCESS_TOKEN` value from Render.
+5. Wait for the API health check at `/health` to pass. The public URLs are
+   normally `https://torquedoc-api.onrender.com` and
+   `https://torquedoc-web.onrender.com`.
+6. Copy the generated `API_ACCESS_TOKEN` value from Render if you are building
+   the mobile app yourself. The static web build receives the same value through
+   the Blueprint's `fromService` reference.
 7. In `app/.env`:
 
    ```dotenv
@@ -34,6 +41,23 @@ multi-tenant product.
 
 8. Restart Expo (`Ctrl+C`, then `npx expo start`) because `EXPO_PUBLIC_*`
    values are inlined by Metro. Scan the QR code with Expo Go.
+
+### Hosted web client and dashboard
+
+Once the Blueprint sync completes:
+
+- The full app is at `https://torquedoc-web.onrender.com`. It uses the same
+  garage, checklist, diagnosis, history and repair-guide flows as the phone app.
+- The API also serves a lightweight owner dashboard at
+  `https://torquedoc-api.onrender.com/dashboard`.
+- Opening `https://torquedoc-api.onrender.com/` in a browser redirects to that
+  dashboard. API clients that request JSON still receive the route index.
+
+The static site is rebuilt whenever `app/` changes. If you rotate
+`API_ACCESS_TOKEN`, trigger a new web deploy so the new token is baked into the
+bundle. Free static sites and free web services are separate Render resources;
+the static site stays available even when the API service is waking up, but its
+first data request still waits for the API cold start.
 
 ### Important: free-plan persistence
 
@@ -98,7 +122,7 @@ A healthy response looks like:
 | `API_ACCESS_TOKEN` | Strongly recommended | 16+ characters. The app sends it as `X-TorqueDoc-Key`. |
 | `TRUST_PROXY` | Yes behind a proxy | Makes rate limiting use `X-Forwarded-For` correctly. |
 | `ANTHROPIC_API_KEY` | For AI features | Server-side only; never put it in `app/.env` or the repository. |
-| `CORS_ORIGIN` | Optional | Keep `*` for the mobile app; narrow it if you add a web client. |
+| `CORS_ORIGIN` | Optional | Keep `*` for the mobile app and Render static site, or narrow it to your web origin. |
 | `MAX_UPLOAD_MB` | Optional | Default 30 MB. Photos are separately capped at 5 MB. |
 | `RATE_LIMIT_PER_MINUTE` | Optional | Default 240 requests/minute per IP. |
 | `AI_RATE_LIMIT_PER_MINUTE` | Optional | Default 10 AI requests/minute per IP. |

@@ -13,6 +13,7 @@ import diagnosesRouter from './routes/diagnoses';
 import aiSymptomsRouter from './routes/aiSymptoms';
 import mediaAnalyzeRouter from './routes/mediaAnalyze';
 import { isFfmpegAvailable } from './services/videoFrames';
+import { renderDashboard } from './dashboard';
 
 /**
  * Builds the Express application without binding a port. `index.ts` listens in
@@ -46,11 +47,18 @@ export function createApp(): express.Express {
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
 
-  app.get('/', (_req, res) => {
+  app.get('/', (req, res) => {
+    // Browsers get the human dashboard; API clients still get the JSON index.
+    if ((req.headers.accept ?? '').includes('text/html')) {
+      res.redirect('/dashboard');
+      return;
+    }
+
     res.json({
       name: 'TorqueDoc API',
       version: '0.2.0',
       docs: 'See docs/API.md in the repository',
+      dashboard: 'GET /dashboard',
       endpoints: {
         health: 'GET /health',
         vehicles: 'GET|POST /vehicles, GET|PATCH|DELETE /vehicles/:id',
@@ -64,6 +72,16 @@ export function createApp(): express.Express {
         analyzeMedia: 'POST /v1/media/analyze',
       },
     });
+  });
+
+  /**
+   * Zero-build owner dashboard for browsers. It is served before the access
+   * guard because a browser cannot attach X-TorqueDoc-Key to the initial HTML
+   * request; the page itself embeds the shared key for its same-origin API
+   * calls. Like the APK, this is a demo/owner tool, not user authentication.
+   */
+  app.get(['/dashboard', '/dashboard/'], (_req, res) => {
+    res.type('html').send(renderDashboard(config.apiAccessToken));
   });
 
   /**

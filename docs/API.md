@@ -7,10 +7,12 @@ same network can reach it.
 - JSON request bodies use `Content-Type: application/json`.
 - Media uploads use `multipart/form-data`.
 - Timestamps are ISO 8601 UTC strings.
-- When the backend sets `API_ACCESS_TOKEN`, every route except `/` and `/health`
-  requires the header `X-TorqueDoc-Key: <token>` (or `Authorization: Bearer
-  <token>`). The app sends it automatically.
+- When the backend sets `API_ACCESS_TOKEN`, every route except `/`, `/dashboard`
+  and `/health` requires the header `X-TorqueDoc-Key: <token>` (or
+  `Authorization: Bearer <token>`). The app sends it automatically.
 - `/health` is deliberately public so hosting platforms can probe it.
+- `/dashboard` is a public, dependency-free browser page that embeds the shared
+  key for its same-origin calls. It is an owner/demo tool, not user auth.
 
 ## Errors
 
@@ -66,7 +68,9 @@ The check is cached for the life of the process.
 
 ### `GET /`
 
-A small index of routes. Useful when you open the base URL in a browser.
+A small JSON index of routes. Browsers (requests whose `Accept` header includes
+`text/html`) are redirected to `/dashboard` instead, so opening the base URL
+does not dump raw JSON at a non-developer.
 
 ---
 

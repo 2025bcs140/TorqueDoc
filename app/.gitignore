@@ -2,6 +2,9 @@ node_modules/
 .expo/
 .expo-export-check/
 dist/
+dist-web/
+android/
+ios/
 *.log
 .env
 .env.*
