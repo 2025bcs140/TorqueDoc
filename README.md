@@ -1,7 +1,7 @@
 # TorqueDoc
 
 A vehicle diagnostic and repair assistant for cars and motorcycles. Describe a
-problem — tick symptoms, write it in your own words, or attach a photo/video —
+problem ΓÇö tick symptoms, write it in your own words, or attach a photo/video ΓÇö
 and get a ranked list of probable causes with a step-by-step repair guide.
 
 Trailers are intentionally out of scope: they don't have an engine to diagnose
@@ -19,16 +19,16 @@ dependency-free client for the same garage and diagnosis API.
 
 
 ```
-┌─────────────────────────────┐        HTTP/JSON        ┌──────────────────────────────┐
-│  app/ — Expo / React Native │  ────────────────────▶  │  backend/ — Express 5        │
-│  Garage · Diagnose · Library│  ◀────────────────────  │  SQLite · rule engine · AI   │
-└─────────────────────────────┘                         └──────────────┬───────────────┘
-                                                                        │
-                                                     ┌──────────────────┴─────────────────┐
-                                                     │ Anthropic Claude (optional, server- │
-                                                     │ side key only): free-text mapping   │
-                                                     │ and photo/video visual inspection   │
-                                                     └─────────────────────────────────────┘
+ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ        HTTP/JSON        ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+Γöé  app/ ΓÇö Expo / React Native Γöé  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓû╢  Γöé  backend/ ΓÇö Express 5        Γöé
+Γöé  Garage ┬╖ Diagnose ┬╖ LibraryΓöé  ΓùÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ  Γöé  SQLite ┬╖ rule engine ┬╖ AI   Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ                         ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+                                                                        Γöé
+                                                     ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+                                                     Γöé Anthropic Claude (optional, server- Γöé
+                                                     Γöé side key only): free-text mapping   Γöé
+                                                     Γöé and photo/video visual inspection   Γöé
+                                                     ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
 ```
 
 The app holds no catalog data and no API keys. The backend owns the database,
@@ -36,21 +36,21 @@ the diagnosis rules, and both AI calls.
 
 ## What it does
 
-- **Garage** — add, edit and delete cars and motorcycles; mileage is editable.
-- **Diagnosis** — three input modes:
-  - **Symptom checklist** — deterministic, explainable, no AI.
-  - **Describe it in words** — Claude maps free text onto the fixed symptom
+- **Garage** ΓÇö add, edit and delete cars and motorcycles; mileage is editable.
+- **Diagnosis** ΓÇö three input modes:
+  - **Symptom checklist** ΓÇö deterministic, explainable, no AI.
+  - **Describe it in words** ΓÇö Claude maps free text onto the fixed symptom
     taxonomy, then the same deterministic engine ranks causes.
-  - **Photo / video** — Claude inspects a photo or three sampled video frames
+  - **Photo / video** ΓÇö Claude inspects a photo or three sampled video frames
     for visual clues, maps them to symptoms, then the rule engine ranks causes.
-- **Ranked causes** — each result shows severity, the share of that cause's
+- **Ranked causes** ΓÇö each result shows severity, the share of that cause's
   known signs you reported, and exactly which signs matched. No black-box
   probability score.
-- **Repair guides** — tools, realistic time estimate, difficulty, numbered
+- **Repair guides** ΓÇö tools, realistic time estimate, difficulty, numbered
   steps with a local step-progress checklist.
-- **History** — every run against a saved vehicle is persisted and can be
+- **History** ΓÇö every run against a saved vehicle is persisted and can be
   reopened later. Deleting a vehicle deletes its history.
-- **OBD-II Bluetooth** — deliberately a disabled placeholder; see Roadmap.
+- **OBD-II Bluetooth** ΓÇö deliberately a disabled placeholder; see Roadmap.
 
 ## Stack, and why
 
@@ -59,14 +59,14 @@ the diagnosis rules, and both AI calls.
 | Mobile | Expo SDK 54, React Native 0.81, TypeScript | Expo Go on the public app stores runs SDK 54; this project is pinned to it so a QR-code scan works. Newer SDKs need a sideloaded Expo Go or a developer build. |
 | Navigation | React Navigation 7 (native stack + tabs) | Small, typed, no file-based routing magic. |
 | API | Express 5 + TypeScript | Boring, well understood, and Express 5 forwards async errors automatically. |
-| Database | Node's built-in `node:sqlite` | No native binary to download at install time — the failure mode that broke the earlier scaffold. Requires **Node 22.5+**. |
+| Database | Node's built-in `node:sqlite` | No native binary to download at install time ΓÇö the failure mode that broke the earlier scaffold. Requires **Node 22.5+**. |
 | AI | Anthropic Messages API via `fetch` | No SDK dependency. The key lives only in `backend/.env`. |
 | Video | System `ffmpeg` / `ffprobe` | Samples frames server-side; Claude does not accept video directly. Photo analysis does not need ffmpeg. |
 
 ## Quickstart
 
-Prerequisites: **Node.js 22.5+** (Node 24 works), npm, and — only for video
-analysis — **ffmpeg** on `PATH`.
+Prerequisites: **Node.js 22.5+** (Node 24 works), npm, and ΓÇö only for video
+analysis ΓÇö **ffmpeg** on `PATH`.
 
 ```bash
 # 1. Backend
@@ -125,13 +125,13 @@ Backend (`backend/.env`):
 |---|---|---|
 | `PORT` | `3000` | API port. |
 | `DB_PATH` | `./torquedoc.db` | SQLite file. Relative paths resolve from `backend/`. |
-| `ANTHROPIC_API_KEY` | — | Enables both AI endpoints. Placeholders are rejected. |
+| `ANTHROPIC_API_KEY` | ΓÇö | Enables both AI endpoints. Placeholders are rejected. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Claude model id. |
 | `AI_TIMEOUT_MS` | `60000` | Anthropic request timeout. |
 | `MAX_UPLOAD_MB` | `30` | Overall photo/video upload limit; photos are capped at 5 MB by the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated origin allow-list. |
 | `LOG_REQUESTS` | `true` | One-line request log. |
-| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/`, `/app`, `/dashboard` and `/health`. |
+| `API_ACCESS_TOKEN` | ΓÇö | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/` and `/health`. |
 | `TRUST_PROXY` | `false` | Set `true` behind Render/Railway so rate limiting sees the real client IP. |
 | `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
 | `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for the AI endpoints. |
@@ -167,7 +167,7 @@ POST   /v1/symptoms/interpret       (AI)
 POST   /v1/media/analyze            (AI, multipart)
 ```
 
-All errors use `{ "error": "human-readable", "code": "MACHINE_CODE", "details"?: … }`.
+All errors use `{ "error": "human-readable", "code": "MACHINE_CODE", "details"?: ΓÇª }`.
 The AI endpoints return `503 AI_NOT_CONFIGURED` when no valid key is set, and
 `502 AI_REQUEST_FAILED` when Anthropic rejects or times out. Video analysis
 reports `503 FFMPEG_NOT_FOUND` before the AI step if ffmpeg is missing.
@@ -221,7 +221,7 @@ npx expo export --platform android
 
 ## Troubleshooting
 
-**"Couldn't reach the TorqueDoc server at https://…"**
+**"Couldn't reach the TorqueDoc server at https://ΓÇª"**
 The app prints the exact URL. Check the hosted backend is awake and `/health`
 returns 200. If you use a LAN backend instead, confirm the IP is the computer's
 current address (not `localhost`), the port is included, both devices are on the
@@ -289,49 +289,49 @@ build notes are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ```
 TorqueDoc/
-├── backend/
-│   ├── src/
-│   │   ├── app.ts                 Express app factory (used by tests)
-│   │   ├── index.ts               listen + graceful shutdown
-│   │   ├── config.ts              env parsing/validation
-│   │   ├── db.ts                  schema, catalog sync, queries
-│   │   ├── http.ts                validation helpers + HttpError
-│   │   ├── middleware/            access key, rate limit, request log, errors
-│   │   ├── routes/                vehicles, catalog, diagnose, diagnoses, AI
-│   │   ├── services/              diagnosis engine, Claude client, ffmpeg
-│   │   └── data/catalog.ts        seed symptoms/causes/repair guides
-│   ├── test/                      node:test unit + integration tests
-│   ├── Dockerfile                 production image (Node 24 + ffmpeg)
-│   └── .dockerignore
-├── app/
-│   ├── App.tsx                    providers + navigation + error boundary
-│   └── src/
-│       ├── components/            cards, checklist, buttons, empty/error states
-│       ├── navigation/            typed param lists + navigator
-│       ├── screens/               one file per screen
-│       ├── services/              one function per API area
-│       ├── store/                 vehicle context
-│       ├── theme/                 colors, spacing, labels
-│       └── types/                 shared API types
-├── docs/
-│   ├── API.md                     endpoint reference
-│   ├── ARCHITECTURE.md            design decisions and data flow
-│   └── DEPLOYMENT.md              Render, Docker, env, EAS
-├── render.yaml                   Render Blueprint (free demo)
-├── README.md
-└── .gitignore
+Γö£ΓöÇΓöÇ backend/
+Γöé   Γö£ΓöÇΓöÇ src/
+Γöé   Γöé   Γö£ΓöÇΓöÇ app.ts                 Express app factory (used by tests)
+Γöé   Γöé   Γö£ΓöÇΓöÇ index.ts               listen + graceful shutdown
+Γöé   Γöé   Γö£ΓöÇΓöÇ config.ts              env parsing/validation
+Γöé   Γöé   Γö£ΓöÇΓöÇ db.ts                  schema, catalog sync, queries
+Γöé   Γöé   Γö£ΓöÇΓöÇ http.ts                validation helpers + HttpError
+Γöé   Γöé   Γö£ΓöÇΓöÇ middleware/            access key, rate limit, request log, errors
+Γöé   Γöé   Γö£ΓöÇΓöÇ routes/                vehicles, catalog, diagnose, diagnoses, AI
+Γöé   Γöé   Γö£ΓöÇΓöÇ services/              diagnosis engine, Claude client, ffmpeg
+Γöé   Γöé   ΓööΓöÇΓöÇ data/catalog.ts        seed symptoms/causes/repair guides
+Γöé   Γö£ΓöÇΓöÇ test/                      node:test unit + integration tests
+Γöé   Γö£ΓöÇΓöÇ Dockerfile                 production image (Node 24 + ffmpeg)
+Γöé   ΓööΓöÇΓöÇ .dockerignore
+Γö£ΓöÇΓöÇ app/
+Γöé   Γö£ΓöÇΓöÇ App.tsx                    providers + navigation + error boundary
+Γöé   ΓööΓöÇΓöÇ src/
+Γöé       Γö£ΓöÇΓöÇ components/            cards, checklist, buttons, empty/error states
+Γöé       Γö£ΓöÇΓöÇ navigation/            typed param lists + navigator
+Γöé       Γö£ΓöÇΓöÇ screens/               one file per screen
+Γöé       Γö£ΓöÇΓöÇ services/              one function per API area
+Γöé       Γö£ΓöÇΓöÇ store/                 vehicle context
+Γöé       Γö£ΓöÇΓöÇ theme/                 colors, spacing, labels
+Γöé       ΓööΓöÇΓöÇ types/                 shared API types
+Γö£ΓöÇΓöÇ docs/
+Γöé   Γö£ΓöÇΓöÇ API.md                     endpoint reference
+Γöé   Γö£ΓöÇΓöÇ ARCHITECTURE.md            design decisions and data flow
+Γöé   ΓööΓöÇΓöÇ DEPLOYMENT.md              Render, Docker, env, EAS
+Γö£ΓöÇΓöÇ render.yaml                   Render Blueprint (free demo)
+Γö£ΓöÇΓöÇ README.md
+ΓööΓöÇΓöÇ .gitignore
 ```
 
 ## Roadmap
 
-1. **OBD-II Bluetooth** — `react-native-ble-plx` plus an ELM327 protocol layer:
+1. **OBD-II Bluetooth** ΓÇö `react-native-ble-plx` plus an ELM327 protocol layer:
    discover/connect, read live PIDs, read and clear stored fault codes, and map
    codes into the existing diagnosis flow. Biggest lift, deliberately last.
-2. **Search across the garage** — the library has search; the garage list is
+2. **Search across the garage** ΓÇö the library has search; the garage list is
    still a plain list.
-3. **Offline catalog cache** — the app currently requires the backend. A
+3. **Offline catalog cache** ΓÇö the app currently requires the backend. A
    read-only SQLite/AsyncStorage cache of the catalog and guides would make the
    checklist usable without a network.
 4. **Auth and multi-user history** if this ever leaves a trusted LAN.
-5. **More catalog content / localization** — the engine is content-driven; add
+5. **More catalog content / localization** ΓÇö the engine is content-driven; add
    symptoms, causes and guides without touching code.
