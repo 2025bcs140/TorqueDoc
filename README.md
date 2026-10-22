@@ -131,7 +131,7 @@ Backend (`backend/.env`):
 | `MAX_UPLOAD_MB` | `30` | Overall photo/video upload limit; photos are capped at 5 MB by the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated origin allow-list. |
 | `LOG_REQUESTS` | `true` | One-line request log. |
-| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/` and `/health`. |
+| `API_ACCESS_TOKEN` | — | Optional shared key for public deployments. Requires `X-TorqueDoc-Key` on every route except `/`, `/app`, `/dashboard` and `/health`. |
 | `TRUST_PROXY` | `false` | Set `true` behind Render/Railway so rate limiting sees the real client IP. |
 | `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
 | `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for the AI endpoints. |
@@ -271,7 +271,7 @@ build notes are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 - The Anthropic key is read only by the backend and is never bundled into the
   app or returned by an endpoint.
 - A public deployment can require `API_ACCESS_TOKEN`, a shared key checked on
-  every route except `/` and `/health`, plus per-IP rate limits. The app bundles
+  every route except `/`, `/app`, `/dashboard` and `/health`, plus per-IP rate limits. The app bundles
   the key, so this is an abuse gate, **not user authentication**.
 - The API still has **one shared garage and history**. Do not invite multiple
   unrelated users until login and per-user ownership are added.
