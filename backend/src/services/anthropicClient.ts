@@ -7,7 +7,7 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 529]);
 export class MissingApiKeyError extends Error {
   constructor() {
     super(
-      'ANTHROPIC_API_KEY is not set. Copy backend/.env.example to backend/.env and add your key from https://console.anthropic.com/ to enable AI features.'
+      'AI features are not configured on this server. Set ANTHROPIC_API_KEY in the backend environment and restart or redeploy the API.'
     );
     this.name = 'MissingApiKeyError';
   }
@@ -34,7 +34,35 @@ export type AnthropicContentBlock =
 
 interface AnthropicResponse {
   content?: { type: string; text?: string }[];
+  stop_reason?: string;
   error?: { type?: string; message?: string };
+}
+
+interface AnthropicRequestPayload {
+  model: string;
+  max_tokens: number;
+  system: string;
+  messages: { role: 'user'; content: AnthropicContentBlock[] }[];
+}
+
+/**
+ * Build the Messages API request body.
+ *
+ * Current Claude models (including the default `claude-sonnet-5-5`) reject
+ * `temperature`, `top_p` and `top_k` with a 400, so this integration
+ * deliberately does not send sampling parameters. JSON discipline comes from
+ * the system prompt instead.
+ */
+export function buildClaudeRequestBody(
+  systemPrompt: string,
+  userContent: AnthropicContentBlock[]
+): AnthropicRequestPayload {
+  return {
+    model: config.anthropicModel,
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }],
+  };
 }
 
 function describeApiError(status: number, body: string): string {
@@ -84,13 +112,7 @@ export async function askClaudeForJson<T>(
     throw new MissingApiKeyError();
   }
 
-  const body = JSON.stringify({
-    model: config.anthropicModel,
-    max_tokens: 2048,
-    temperature: 0,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userContent }],
-  });
+  const body = JSON.stringify(buildClaudeRequestBody(systemPrompt, userContent));
 
   let lastError: Error | undefined;
 
@@ -120,6 +142,13 @@ export async function askClaudeForJson<T>(
 
     if (response.ok) {
       const data = (await response.json()) as AnthropicResponse;
+
+      if (data.stop_reason === 'max_tokens') {
+        throw new AnthropicRequestError(
+          'Claude hit the output token limit before returning a complete result. Try a shorter prompt or a smaller image.'
+        );
+      }
+
       const text = (data.content ?? [])
         .filter((block) => block.type === 'text' && typeof block.text === 'string')
         .map((block) => block.text)
