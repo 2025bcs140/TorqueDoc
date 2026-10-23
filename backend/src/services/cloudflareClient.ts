@@ -19,11 +19,6 @@ export interface CloudflareRequestPayload {
   max_tokens: number;
   temperature: number;
   stream: false;
-  /**
-   * Llama 3.2 Vision accepts one image through this top-level field. Mistral
-   * Small 3.1 accepts image parts inside `messages`, including multiple frames.
-   */
-  image?: string;
 }
 
 export interface CloudflareResponse {
@@ -44,10 +39,10 @@ function isLegacyLlamaVisionModel(model: string): boolean {
 /**
  * Build a Workers AI request.
  *
- * Mistral Small 3.1 accepts OpenAI-style text/image parts, so a video's three
- * sampled frames can be inspected together. Llama 3.2 Vision only documents a
- * single top-level `image`; when that model is selected we send the first frame
- * rather than pretending the model saw all of them.
+ * Both models accept OpenAI-style text/image parts inside `messages`. Mistral
+ * Small 3.1 can inspect a video's three sampled frames together; Llama 3.2
+ * Vision documents only one image, so that fallback receives the first frame
+ * rather than pretending it saw all of them.
  */
 export function buildCloudflareRequestBody(
   systemPrompt: string,
@@ -74,13 +69,10 @@ export function buildCloudflareRequestBody(
 
   if (images.length === 0) return base;
 
-  if (isLegacyLlamaVisionModel(model)) {
-    return { ...base, image: imageDataUrl(images[0]) };
-  }
-
+  const imagesToSend = isLegacyLlamaVisionModel(model) ? images.slice(0, 1) : images;
   const parts: CloudflareUserPart[] = [];
   if (text) parts.push({ type: 'text', text });
-  for (const image of images) {
+  for (const image of imagesToSend) {
     parts.push({ type: 'image_url', image_url: { url: imageDataUrl(image) } });
   }
 

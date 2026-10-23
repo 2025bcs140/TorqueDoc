@@ -62,7 +62,7 @@ directory; values already present in the process environment take precedence.
 | `CLOUDFLARE_ACCOUNT_ID` | empty | 32-character Cloudflare account id. Enables both AI endpoints when paired with a token. |
 | `CLOUDFLARE_API_TOKEN` | empty | Token with Workers AI access. Server-side only; placeholder values are rejected. |
 | `CLOUDFLARE_MODEL` | `@cf/mistralai/mistral-small-3.1-24b-instruct` | Text and vision model id. |
-| `CLOUDFLARE_VISION_MODEL` | same as `CLOUDFLARE_MODEL` | Optional separate vision model. Llama 3.2 Vision uses a single image; Mistral accepts multiple frames. |
+| `CLOUDFLARE_VISION_MODEL` | same as `CLOUDFLARE_MODEL` | Optional separate vision model. Llama 3.2 Vision uses a single image and requires a one-time Meta license agreement; Mistral accepts multiple frames. |
 | `CLOUDFLARE_API_BASE_URL` | `https://api.cloudflare.com/client/v4` | Normally leave unchanged; useful for a mock server in tests. |
 | `ANTHROPIC_API_KEY` | empty | Optional legacy fallback. Cloudflare is preferred when both are configured. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Any Anthropic Messages-API model id. |

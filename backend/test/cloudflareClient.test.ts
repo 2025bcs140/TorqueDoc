@@ -29,7 +29,7 @@ test('Cloudflare request maps text and image blocks to Workers AI messages', asy
   assert.equal(body.stream, false);
 });
 
-test('Cloudflare request uses the documented top-level image for Llama 3.2 Vision', async () => {
+test('Cloudflare request sends only one image in messages for Llama 3.2 Vision', async () => {
   const { buildCloudflareRequestBody } = await import('../src/services/cloudflareClient');
   const body = buildCloudflareRequestBody(
     'system prompt',
@@ -41,8 +41,12 @@ test('Cloudflare request uses the documented top-level image for Llama 3.2 Visio
     '@cf/meta/llama-3.2-11b-vision-instruct'
   );
 
-  assert.equal(body.image, 'data:image/png;base64,frame1');
-  assert.equal(body.messages[1].content, 'Inspect the frame');
+  assert.ok(Array.isArray(body.messages[1].content));
+  assert.deepEqual(body.messages[1].content, [
+    { type: 'text', text: 'Inspect the frame' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,frame1' } },
+  ]);
+  assert.ok(!('image' in body));
 });
 
 test('Cloudflare response parser accepts the Workers AI result shape', async () => {

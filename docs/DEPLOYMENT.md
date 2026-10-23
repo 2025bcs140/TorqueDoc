@@ -49,9 +49,11 @@ HTML at request time, so treat it as an abuse gate, not as a user login.
    training** on Customer Content. The default
    `@cf/mistralai/mistral-small-3.1-24b-instruct` handles text and images.
    Higher-end models may require a paid Workers plan; the default model is
-   available on the free allocation. If you need a cheaper vision model, set
+   available on the free allocation. If you need a cheaper vision fallback, set
    `CLOUDFLARE_VISION_MODEL=@cf/meta/llama-3.2-11b-vision-instruct`; it accepts
-   one image per request, while Mistral accepts multiple video frames.
+   one image per request, so the adapter sends the first video frame. Llama 3.2
+   Vision also requires a one-time Meta license agreement: send
+   `{"prompt":"agree"}` to the model before using it.
 
    Anthropic remains an optional fallback if you later add credits. Set
    `ANTHROPIC_API_KEY`; Cloudflare is preferred when both are configured.
