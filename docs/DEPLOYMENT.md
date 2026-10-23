@@ -26,12 +26,16 @@ HTML at request time, so treat it as an abuse gate, not as a user login.
 4. For free-text, photo and video features, add `CLOUDFLARE_ACCOUNT_ID` and
    `CLOUDFLARE_API_TOKEN` in the service's **Environment** tab:
 
-   1. Create a free [Cloudflare account](https://dash.cloudflare.com/sign-up)
+   1. Create a free [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
       (no credit card is required for Workers Free).
-   2. Open **Workers AI** in the dashboard and copy the **Account ID**.
-   3. Create an API token with Workers AI access and copy it. The token is
-      shown once. Do not put it in `app/.env` or the repository.
-   4. Leave both values unset to keep the AI routes disabled with a clear
+   2. Open [Workers AI](https://dash.cloudflare.com/?to=/:account/ai/workers-ai)
+      and select **Use REST API**.
+   3. Select **Create a Workers AI API Token**, review the prefilled
+      `Workers AI - Read` permission, and create it. Copy the token. Do not put
+      it in `app/.env` or the repository.
+   4. Copy the **Account ID** shown on the same page (32 hexadecimal
+      characters).
+   5. Leave both values unset to keep the AI routes disabled with a clear
       `503 AI_NOT_CONFIGURED`.
 
    The free plan includes 10,000 Neurons/day. Cloudflare's Workers AI data
