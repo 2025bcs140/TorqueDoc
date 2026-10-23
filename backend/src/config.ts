@@ -39,19 +39,51 @@ const rawDbPath = readString('DB_PATH', 'torquedoc.db');
 const dbPath = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(BACKEND_ROOT, rawDbPath);
 
 /**
- * Reject obvious placeholders (for example the `sk-ant` value shipped in
+ * Reject obvious placeholders (for example the values shipped in
  * `.env.example`) so the AI endpoints return a helpful 503 instead of
- * forwarding a guaranteed-401 request to Anthropic.
+ * forwarding a guaranteed-401 request upstream.
+ *
+ * Cloudflare account ids are 32 hex characters. API tokens are longer; the
+ * placeholder prefixes are rejected so a copied `.env.example` cannot make
+ * `/health` claim that AI is ready.
  */
-const rawApiKey = readString('ANTHROPIC_API_KEY', '');
+const rawAnthropicApiKey = readString('ANTHROPIC_API_KEY', '');
 const anthropicApiKey =
-  rawApiKey.startsWith('sk-ant-') && rawApiKey.length >= 20 ? rawApiKey : null;
+  rawAnthropicApiKey.startsWith('sk-ant-') && rawAnthropicApiKey.length >= 20
+    ? rawAnthropicApiKey
+    : null;
+
+const rawCloudflareAccountId = readString('CLOUDFLARE_ACCOUNT_ID', '');
+const cloudflareAccountId = /^[a-f0-9]{32}$/i.test(rawCloudflareAccountId)
+  ? rawCloudflareAccountId
+  : null;
+
+const rawCloudflareApiToken = readString('CLOUDFLARE_API_TOKEN', '');
+const cloudflareApiToken =
+  rawCloudflareApiToken.length >= 20 && !/^(your|replace|changeme)/i.test(rawCloudflareApiToken)
+    ? rawCloudflareApiToken
+    : null;
+
+const cloudflareModel = readString(
+  'CLOUDFLARE_MODEL',
+  '@cf/mistralai/mistral-small-3.1-24b-instruct'
+);
+const cloudflareVisionModel = readString('CLOUDFLARE_VISION_MODEL', cloudflareModel);
+const anthropicModel = readString('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
+
+/** Cloudflare is preferred when both credentials are present. */
+const aiProvider: 'cloudflare' | 'anthropic' | null =
+  cloudflareAccountId && cloudflareApiToken
+    ? 'cloudflare'
+    : anthropicApiKey
+      ? 'anthropic'
+      : null;
 
 /**
  * Optional shared key for any internet-facing deployment. When set, every
  * route except `/` and `/health` requires `X-TorqueDoc-Key` (or a Bearer
  * token). It is not a replacement for per-user accounts, but it stops a
- * public URL from being an open proxy to the Anthropic key.
+ * public URL from being an open proxy to the configured AI provider.
  */
 const apiAccessToken = readString('API_ACCESS_TOKEN', '');
 if (apiAccessToken.length > 0 && apiAccessToken.length < 16) {
@@ -65,7 +97,25 @@ export const config = {
   dbPath,
 
   anthropicApiKey,
-  anthropicModel: readString('ANTHROPIC_MODEL', 'claude-sonnet-5-5'),
+  anthropicModel,
+
+  cloudflareAccountId,
+  cloudflareApiToken,
+  cloudflareApiBaseUrl: readString(
+    'CLOUDFLARE_API_BASE_URL',
+    'https://api.cloudflare.com/client/v4'
+  ),
+  cloudflareModel,
+  cloudflareVisionModel,
+
+  aiProvider,
+  aiModel:
+    aiProvider === 'cloudflare'
+      ? cloudflareModel
+      : aiProvider === 'anthropic'
+        ? anthropicModel
+        : null,
+  aiConfigured: aiProvider !== null,
   aiTimeoutMs: readInt('AI_TIMEOUT_MS', 60_000, 5_000, 180_000),
 
   maxUploadMb: readInt('MAX_UPLOAD_MB', 30, 1, 200),

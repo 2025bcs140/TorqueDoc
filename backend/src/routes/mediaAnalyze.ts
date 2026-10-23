@@ -4,11 +4,11 @@ import { MAX_UPLOAD_BYTES } from '../config';
 import { getSymptomsForVehicleType } from '../db';
 import { badRequest, isPlainObject, requireVehicleType } from '../http';
 import {
-  AnthropicImageMediaType,
-  AnthropicRequestError,
-  askClaudeForJson,
-  MissingApiKeyError,
-} from '../services/anthropicClient';
+  AiImageMediaType,
+  AiNotConfiguredError,
+  AiRequestError,
+  askAiForJson,
+} from '../services/aiClient';
 import { extractVideoFramesBase64, FfmpegNotFoundError } from '../services/videoFrames';
 
 const router = Router();
@@ -21,10 +21,10 @@ const upload = multer({
 const VALID_KINDS = ['photo', 'video'] as const;
 type MediaKind = (typeof VALID_KINDS)[number];
 
-/** Anthropic's vision API accepts images up to 5 MB each. */
+/** The app and the vision-model upload path both cap each photo at 5 MB. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
-const PHOTO_MIME_TYPES: Record<string, AnthropicImageMediaType> = {
+const PHOTO_MIME_TYPES: Record<string, AiImageMediaType> = {
   'image/jpeg': 'image/jpeg',
   'image/jpg': 'image/jpeg',
   'image/png': 'image/png',
@@ -117,7 +117,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
     });
   }
 
-  let base64Frames: { data: string; mediaType: AnthropicImageMediaType }[];
+  let base64Frames: { data: string; mediaType: AiImageMediaType }[];
   let frameNote: string;
 
   if (kind === 'photo') {
@@ -172,16 +172,13 @@ ${JSON.stringify(relevantSymptoms, null, 2)}`,
     },
     ...base64Frames.map((frame) => ({
       type: 'image' as const,
-      source: {
-        type: 'base64' as const,
-        media_type: frame.mediaType,
-        data: frame.data,
-      },
+      mediaType: frame.mediaType,
+      data: frame.data,
     })),
   ];
 
   try {
-    const result = await askClaudeForJson<MediaAnalysisResult>(SYSTEM_PROMPT, content);
+    const result = await askAiForJson<MediaAnalysisResult>(SYSTEM_PROMPT, content);
 
     const knownIds = new Set(relevantSymptoms.map((symptom) => symptom.id));
     const matchedSymptomIds = Array.isArray(result.matchedSymptomIds)
@@ -219,12 +216,12 @@ ${JSON.stringify(relevantSymptoms, null, 2)}`,
       notes: typeof result.notes === 'string' ? result.notes.slice(0, 1_000) : '',
     });
   } catch (error) {
-    if (error instanceof MissingApiKeyError) {
+    if (error instanceof AiNotConfiguredError) {
       return res.status(503).json({ error: error.message, code: 'AI_NOT_CONFIGURED' });
     }
     console.error('Media analysis failed:', error);
     const message =
-      error instanceof AnthropicRequestError
+      error instanceof AiRequestError
         ? error.message
         : error instanceof Error
           ? error.message

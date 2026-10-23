@@ -1,29 +1,34 @@
 import { config } from '../config';
+import { extractJsonObject } from './aiJson';
+import {
+  AiContentBlock,
+  AiImageMediaType,
+  AiNotConfiguredError,
+  AiRequestError,
+} from './aiTypes';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 529]);
 
-export class MissingApiKeyError extends Error {
+/** Kept for callers that used the Anthropic-specific name before the provider abstraction. */
+export class MissingApiKeyError extends AiNotConfiguredError {
   constructor() {
     super(
-      'AI features are not configured on this server. Set ANTHROPIC_API_KEY in the backend environment and restart or redeploy the API.'
+      'AI features are not configured on this server. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (Workers AI), or ANTHROPIC_API_KEY, in the backend environment and restart or redeploy the API.'
     );
     this.name = 'MissingApiKeyError';
   }
 }
 
-export class AnthropicRequestError extends Error {
-  readonly status?: number;
-
+export class AnthropicRequestError extends AiRequestError {
   constructor(message: string, status?: number) {
-    super(message);
+    super(message, status);
     this.name = 'AnthropicRequestError';
-    this.status = status;
   }
 }
 
-export type AnthropicImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+export type AnthropicImageMediaType = AiImageMediaType;
 
 export type AnthropicContentBlock =
   | { type: 'text'; text: string }
@@ -55,13 +60,26 @@ interface AnthropicRequestPayload {
  */
 export function buildClaudeRequestBody(
   systemPrompt: string,
-  userContent: AnthropicContentBlock[]
+  userContent: AiContentBlock[]
 ): AnthropicRequestPayload {
+  const content: AnthropicContentBlock[] = userContent.map((block) =>
+    block.type === 'text'
+      ? block
+      : {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: block.mediaType,
+            data: block.data,
+          },
+        }
+  );
+
   return {
     model: config.anthropicModel,
     max_tokens: 4096,
     system: systemPrompt,
-    messages: [{ role: 'user', content: userContent }],
+    messages: [{ role: 'user', content }],
   };
 }
 
@@ -78,20 +96,11 @@ function describeApiError(status: number, body: string): string {
 }
 
 function extractJson(text: string): unknown {
-  // Models occasionally wrap JSON in a markdown fence despite instructions.
-  const cleaned = text.replace(/```(?:json)?/gi, '').trim();
-  const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
-  const candidate =
-    firstBrace !== -1 && lastBrace > firstBrace
-      ? cleaned.slice(firstBrace, lastBrace + 1)
-      : cleaned;
-
   try {
-    return JSON.parse(candidate);
+    return extractJsonObject(text);
   } catch {
     throw new AnthropicRequestError(
-      `Claude returned a response that wasn't valid JSON: ${candidate.slice(0, 200)}`
+      `Claude returned a response that wasn't valid JSON: ${text.slice(0, 200)}`
     );
   }
 }
@@ -106,7 +115,7 @@ function extractJson(text: string): unknown {
  */
 export async function askClaudeForJson<T>(
   systemPrompt: string,
-  userContent: AnthropicContentBlock[]
+  userContent: AiContentBlock[]
 ): Promise<T> {
   if (!config.anthropicApiKey) {
     throw new MissingApiKeyError();

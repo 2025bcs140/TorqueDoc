@@ -131,8 +131,9 @@ export function createApp(): express.Express {
       ok: databaseOk,
       database: databaseOk ? 'ok' : 'error',
       ai: {
-        configured: Boolean(config.anthropicApiKey),
-        model: config.anthropicApiKey ? config.anthropicModel : null,
+        configured: config.aiConfigured,
+        provider: config.aiProvider,
+        model: config.aiModel,
       },
       videoAnalysis: ffmpegAvailable ? 'available' : 'unavailable',
       uptimeSeconds: Math.round(process.uptime()),

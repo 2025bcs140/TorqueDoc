@@ -1,8 +1,8 @@
 # TorqueDoc backend
 
 Express 5 + TypeScript API that owns the SQLite database, the diagnosis rule
-engine, and both Claude-powered features. The Anthropic key lives only here and
-is never sent to the mobile app.
+engine, and both AI-assisted features. The Cloudflare Workers AI credentials
+(or optional Anthropic key) live only here and are never sent to the mobile app.
 
 For the full endpoint reference see [`../docs/API.md`](../docs/API.md). For design
 decisions and trade-offs see [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
@@ -23,7 +23,7 @@ decisions and trade-offs see [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md
 cd backend
 npm install
 cp .env.example .env        # Windows: copy .env.example .env
-# edit .env: add ANTHROPIC_API_KEY (optional)
+# edit .env: add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (optional)
 npm run dev                 # http://localhost:3000
 ```
 
@@ -59,8 +59,13 @@ directory; values already present in the process environment take precedence.
 |---|---|---|
 | `PORT` | `3000` | `0` lets the OS choose (tests use this). |
 | `DB_PATH` | `./torquedoc.db` | Relative paths resolve from `backend/`, not the shell's cwd. |
-| `ANTHROPIC_API_KEY` | empty | Enables both AI endpoints. Placeholder values are rejected. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Any Messages-API model id. |
+| `CLOUDFLARE_ACCOUNT_ID` | empty | 32-character Cloudflare account id. Enables both AI endpoints when paired with a token. |
+| `CLOUDFLARE_API_TOKEN` | empty | Token with Workers AI access. Server-side only; placeholder values are rejected. |
+| `CLOUDFLARE_MODEL` | `@cf/mistralai/mistral-small-3.1-24b-instruct` | Text and vision model id. |
+| `CLOUDFLARE_VISION_MODEL` | same as `CLOUDFLARE_MODEL` | Optional separate vision model. Llama 3.2 Vision uses a single image; Mistral accepts multiple frames. |
+| `CLOUDFLARE_API_BASE_URL` | `https://api.cloudflare.com/client/v4` | Normally leave unchanged; useful for a mock server in tests. |
+| `ANTHROPIC_API_KEY` | empty | Optional legacy fallback. Cloudflare is preferred when both are configured. |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Any Anthropic Messages-API model id. |
 | `AI_TIMEOUT_MS` | `60000` | Per-request timeout, clamped to 5s–180s. |
 | `MAX_UPLOAD_MB` | `30` | Multer file-size limit. Photos are additionally capped at 5 MB for the vision API. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated allow-list. |
@@ -73,6 +78,12 @@ directory; values already present in the process environment take precedence.
 `backend/.env` and the database files are gitignored. Do not commit real keys.
 For a Docker/Render deployment see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
 
+Cloudflare Workers AI is the recommended free provider: the Workers Free plan
+includes 10,000 Neurons/day with no credit card, and Cloudflare documents zero
+retention for standard inference plus no training on submitted Customer Content.
+Create an API token with Workers AI access. Missing credentials produce a clear
+`503 AI_NOT_CONFIGURED`; the checklist, garage and library keep working.
+
 ## Architecture in one paragraph
 
 `index.ts` calls `initDb()` then `createApp()` and listens. `createApp()` is also
@@ -80,8 +91,9 @@ imported by the integration tests, which run the real app on an ephemeral port
 against a throwaway database. Routes contain only HTTP parsing/validation; all
 SQL lives in `db.ts`, and the ranking logic is a pure function in
 `services/diagnosisEngine.ts`. That pure function takes a catalog snapshot, so
-it can be tested without a database. AI routes use `services/anthropicClient.ts`,
-which owns the timeout, retry, JSON extraction, and key handling.
+it can be tested without a database. AI routes call `services/aiClient.ts`,
+which selects Cloudflare Workers AI (preferred) or Anthropic. The provider
+adapters own the timeout, retry, JSON extraction, and credential handling.
 
 ## Database and catalog
 
@@ -128,9 +140,10 @@ where motorcycle confidence incorrectly counted car-only symptoms.
 - AI endpoints returning `503 AI_NOT_CONFIGURED`
 - media MIME/kind validation, missing files, the 5 MB photo cap, and the ffmpeg-unavailable video path
 
-The tests do **not** call Anthropic and do not require ffmpeg. The test files
-run in separate processes, so the DB path environment variable is set before
-importing the app.
+The tests do **not** call Cloudflare or Anthropic and do not require ffmpeg.
+`test/cloudflareClient.test.ts` checks request mapping, response extraction and
+the missing-credential error. The test files run in separate processes, so
+environment variables are set before importing the app.
 
 ## Manual smoke test
 
@@ -165,13 +178,15 @@ The app is probably using `localhost` or a stale LAN IP. See the root README and
 computer.
 
 **AI returns 503 `AI_NOT_CONFIGURED`**
-`ANTHROPIC_API_KEY` is missing or is still the placeholder. Paste a real
-`sk-ant-…` key and restart the backend.
+Neither provider is fully configured. Set `CLOUDFLARE_ACCOUNT_ID` (32 hex
+characters) and `CLOUDFLARE_API_TOKEN` (a token with Workers AI access) and
+restart the backend. Anthropic remains an optional fallback.
 
 **AI returns 502**
-Check the backend console. Common causes are an invalid key, no billing/credit,
-an unavailable model id, or a timeout. The message is forwarded from Anthropic
-without the key.
+Check the backend console. Common causes are an invalid Cloudflare token, a
+token without Workers AI permission, a model unavailable on your plan, a daily
+Neuron limit, or a timeout. The upstream message is forwarded without the
+credential.
 
 **Video returns 503 `FFMPEG_NOT_FOUND`**
 Install ffmpeg and verify **both** commands work in a new terminal:

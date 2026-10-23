@@ -64,9 +64,9 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
       <View style={styles.privacyNote}>
         <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
         <Text style={styles.privacyText}>
-          AI options send your description or media to Anthropic through this app’s backend. The
-          API key never leaves the server. The symptom checklist stays entirely local to your
-          backend.
+          AI options send your description or media to Cloudflare Workers AI through this app’s
+          backend. Cloudflare doesn’t train on or retain the content, and the API token never
+          leaves the server. The symptom checklist stays entirely local to your backend.
         </Text>
       </View>
     </ScrollView>

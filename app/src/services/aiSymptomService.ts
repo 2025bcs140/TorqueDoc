@@ -7,9 +7,10 @@ export interface AiSymptomResult {
 }
 
 /**
- * Sends a free-text description to the backend, which asks Claude to map it
- * onto the known symptom taxonomy. The API key lives only on the server — this
- * is a plain JSON request like any other service in the app.
+ * Sends a free-text description to the backend, which asks Cloudflare Workers
+ * AI (or the configured fallback provider) to map it onto the known symptom
+ * taxonomy. The API token lives only on the server, so this is a plain JSON
+ * request like any other service in the app.
  */
 export async function interpretFreeTextSymptom(
   vehicleType: VehicleType,

@@ -43,8 +43,8 @@ Every error response has the same shape:
 | 413 | `PAYLOAD_TOO_LARGE` | JSON body exceeds 1 MB. |
 | 422 | `VIDEO_UNREADABLE` / `VIDEO_NO_FRAMES` | ffmpeg could not read usable frames from the clip. |
 | 500 | `INTERNAL_ERROR` | Unexpected server error (message is generic in production). |
-| 502 | `AI_REQUEST_FAILED` | Anthropic rejected the request, returned invalid JSON, or timed out. |
-| 503 | `AI_NOT_CONFIGURED` | No valid `ANTHROPIC_API_KEY` is set. |
+| 502 | `AI_REQUEST_FAILED` | The configured AI provider rejected the request, returned invalid JSON, or timed out. |
+| 503 | `AI_NOT_CONFIGURED` | No valid Cloudflare Workers AI credentials (or optional Anthropic key) are set. |
 | 503 | `FFMPEG_NOT_FOUND` | Video analysis requested, but ffmpeg/ffprobe are not on `PATH`. |
 
 ---
@@ -59,7 +59,7 @@ Liveness plus capability probe. Returns `503` if the database cannot be queried.
 {
   "ok": true,
   "database": "ok",
-  "ai": { "configured": false, "model": null },
+  "ai": { "configured": false, "provider": null, "model": null },
   "videoAnalysis": "unavailable",
   "uptimeSeconds": 42
 }
@@ -324,8 +324,11 @@ Fetches one saved record. Used by the app's history detail screen.
 ## AI features
 
 Both endpoints are optional. They return `503 AI_NOT_CONFIGURED` when the
-backend has no valid Anthropic key, and `502 AI_REQUEST_FAILED` on an upstream
-failure. The model is set with `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`).
+backend has no valid AI credentials, and `502 AI_REQUEST_FAILED` on an upstream
+failure. Cloudflare Workers AI is preferred; set `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`. The model is set with `CLOUDFLARE_MODEL` (default
+`@cf/mistralai/mistral-small-3.1-24b-instruct`). Anthropic remains an optional
+fallback configured with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`.
 
 ### `POST /v1/symptoms/interpret`
 
@@ -337,8 +340,8 @@ failure. The model is set with `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`).
 ```
 
 `description` is required, 3–2,000 characters after trimming. The backend sends
-the description plus the vehicle's symptom taxonomy to Claude and filters the
-reply to known ids.
+the description plus the vehicle's symptom taxonomy to the configured AI
+provider and filters the reply to known ids.
 
 ```json
 {
@@ -384,7 +387,7 @@ capped at 1,000 characters.
 Possible failures:
 
 - `400` wrong `kind`, missing file, or an unsupported MIME type (checked before
-  calling Anthropic)
+  calling the AI provider)
 - `413 FILE_TOO_LARGE`
 - `413 PHOTO_TOO_LARGE` (image over the vision API's 5 MB limit)
 - `422 VIDEO_UNREADABLE` / `VIDEO_NO_FRAMES`

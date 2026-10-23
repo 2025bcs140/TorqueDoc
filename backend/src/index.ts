@@ -15,11 +15,13 @@ const server = app.listen(config.port, '0.0.0.0', async () => {
   console.log(`TorqueDoc backend listening on http://0.0.0.0:${config.port}`);
   console.log(`Database: ${config.dbPath}`);
 
-  if (config.anthropicApiKey) {
-    console.log(`AI features enabled (model: ${config.anthropicModel}).`);
+  if (config.aiConfigured) {
+    console.log(
+      `AI features enabled (provider: ${config.aiProvider}, model: ${config.aiModel}).`
+    );
   } else {
     console.warn(
-      'AI features are disabled: set a real ANTHROPIC_API_KEY in backend/.env to enable free-text and photo/video diagnosis.'
+      'AI features are disabled: set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in backend/.env (or on the host) to enable free-text and photo/video diagnosis.'
     );
   }
 

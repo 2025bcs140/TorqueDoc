@@ -25,7 +25,18 @@ services:
       # EXPO_PUBLIC_API_ACCESS_TOKEN before building the app.
       - key: API_ACCESS_TOKEN
         generateValue: true
-      # Set this in the Render dashboard; leave it unset to keep AI disabled.
+      # Cloudflare Workers AI free tier: no credit card, 10,000 Neurons/day,
+      # zero retention and no training on submitted content. Create a free
+      # Cloudflare account and an API token with Workers AI access, then set
+      # these two values in the Render dashboard. Leave them unset to keep AI
+      # disabled (the routes return a clear 503).
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_MODEL
+        value: "@cf/mistralai/mistral-small-3.1-24b-instruct"
+      # Optional legacy fallback if you later add Anthropic credits.
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL

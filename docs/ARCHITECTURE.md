@@ -40,13 +40,15 @@ trade-offs that are easy to miss from the code alone.
 │                              │
 │ routes → validation → db     │
 │         → diagnosis engine   │
-│         → Claude client      │
+│         → AI provider adapter│
 └──────┬───────────────┬───────┘
        │               │
-┌──────▼──────┐  ┌─────▼─────────────────┐
-│ SQLite file │  │ Anthropic Messages API│
-│ node:sqlite │  │ (optional, server key)│
-└─────────────┘  └───────────────────────┘
+┌──────▼──────┐  ┌─────▼───────────────────────┐
+│ SQLite file │  │ Cloudflare Workers AI       │
+│ node:sqlite │  │ (preferred; optional key)   │
+└─────────────┘  └─────────────────────────────┘
+                 Anthropic remains an optional
+                 fallback behind the same adapter.
                        ▲
                        │ frames
               ┌────────┴────────┐
@@ -55,8 +57,9 @@ trade-offs that are easy to miss from the code alone.
               └─────────────────┘
 ```
 
-The app never talks to Anthropic directly. The key exists only in
-`backend/.env`; the app only knows the backend base URL.
+The app never talks to the AI provider directly. Credentials exist only in
+`backend/.env` (or the host's secret store); the app only knows the backend
+base URL.
 
 ## Request flows
 
@@ -81,7 +84,7 @@ auditable path.
 
 ```
 app: POST /v1/symptoms/interpret { vehicleType, description }
-      → send taxonomy + description to Claude
+      → send taxonomy + description to the configured AI provider
       → validate/filter returned ids against taxonomy
       → return { matchedSymptomIds, summary }
 app: POST /diagnose { symptomIds: matchedSymptomIds, source: free_text }
@@ -100,7 +103,7 @@ app: POST /v1/media/analyze (multipart: vehicleType, kind, file)
       → validate kind + MIME type
       → photo: base64 the image directly
       → video: write temp file, ffprobe duration, ffmpeg extract 3 scaled frames
-      → send taxonomy + images to Claude
+      → send taxonomy + images to the configured AI provider
       → validate/filter returned ids, labels, confidence, notes
       → return { matchedSymptomIds, detectedLabels, notes }
 app: POST /diagnose { symptomIds, source: media }
@@ -123,7 +126,9 @@ a `finally` block.
 | `src/middleware/` | Request logging and the single error handler. |
 | `src/routes/` | HTTP concerns only: parse input, 404s, status codes. |
 | `src/services/diagnosisEngine.ts` | Pure ranking function. No database import. |
-| `src/services/anthropicClient.ts` | Timeout, retry, JSON extraction, error mapping. |
+| `src/services/aiClient.ts` | Selects Cloudflare Workers AI (preferred) or Anthropic and exposes one typed call. |
+| `src/services/cloudflareClient.ts` | Workers AI request mapping, timeout, retry, JSON extraction, error mapping. |
+| `src/services/anthropicClient.ts` | Optional Anthropic adapter with the same contract. |
 | `src/services/videoFrames.ts` | ffmpeg availability and frame extraction. |
 | `src/data/catalog.ts` | Seed symptoms, causes, repair guides, `CATALOG_VERSION`. |
 
@@ -241,17 +246,25 @@ partial selection can make a different cause look stronger.
 
 ## AI design
 
-- **Model:** `claude-sonnet-5-5` by default, configurable with
-  `ANTHROPIC_MODEL`. The model id is not hard-coded in route handlers.
-- **Transport:** `fetch` to the Messages API with `anthropic-version:
-  2023-06-01`, a 60s timeout (`AI_TIMEOUT_MS`), and one retry on 429/5xx/529.
-- **Key handling:** read once in `config.ts`. Values that do not look like an
-  Anthropic key (`sk-ant-…`, at least 20 chars) are treated as unconfigured, so
-  the placeholder from `.env.example` produces a helpful 503 instead of a
+- **Provider:** Cloudflare Workers AI is preferred when
+  `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are set. Anthropic is an
+  optional fallback when `ANTHROPIC_API_KEY` is set. Both adapters implement the
+  same `askAiForJson` contract, so route code does not know which provider ran.
+- **Model:** `@cf/mistralai/mistral-small-3.1-24b-instruct` by default,
+  configurable with `CLOUDFLARE_MODEL`. It handles text and image inputs; a
+  separate `CLOUDFLARE_VISION_MODEL` can be set. The model id is not hard-coded
+  in route handlers.
+- **Transport:** `fetch` to
+  `https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{model}` with
+  a 60s timeout (`AI_TIMEOUT_MS`) and one retry on 429/5xx/529. Anthropic uses
+  its Messages API with `anthropic-version: 2023-06-01`.
+- **Credential handling:** read once in `config.ts`. Cloudflare account ids must
+  be 32 hex characters, API tokens must be at least 20 characters and not a
+  placeholder. Missing or placeholder values produce a helpful 503 instead of a
   guaranteed 401.
-- **JSON discipline:** both prompts demand JSON only; the client strips markdown
-  fences and extracts the outermost object. If parsing fails, the request fails
-  with a clear 502 instead of passing malformed data downstream.
+- **JSON discipline:** both prompts demand JSON only; the shared client strips
+  markdown fences and extracts the outermost object. If parsing fails, the
+  request fails with a clear 502 instead of passing malformed data downstream.
 - **Output validation:** returned ids are intersected with the exact taxonomy
   sent in the prompt. Extra ids are dropped. Labels and notes are length-capped;
   confidences are clamped to 0–1 (and divided by 100 if the model returns a
@@ -259,8 +272,11 @@ partial selection can make a different cause look stronger.
 - **No AI in the ranking:** the same engine handles checklist, free text, and
   media, which keeps results reproducible and testable.
 - **Privacy:** photos/videos are held in memory (or a temp directory for
-  ffmpeg), sent to Anthropic, and deleted afterward. They are never written to
-  the SQLite database. Only symptom ids and cause snapshots are stored.
+  ffmpeg), sent to the configured provider, and deleted afterward. They are
+  never written to the SQLite database. Only symptom ids and cause snapshots are
+  stored. Cloudflare's Workers AI policy states zero retention for standard
+  inference requests and no training on Customer Content; that is why it is the
+  preferred free provider.
 
 ## Media pipeline details
 
@@ -321,7 +337,7 @@ App.tsx
 | Coverage score | Explainable, no false statistical confidence | One-sign causes look strong; no negative evidence |
 | Shared-key gate, no user accounts | Frictionless personal/demo deployment | Single shared garage/history; bundled token is not real authentication |
 | Expo SDK 54 pin | Works in public-store Expo Go | Newer SDK features unavailable until Expo Go catches up |
-| Frame extraction, not video upload to model | Claude has no native video input | Audio and motion nuance are lost |
+| Frame extraction, not video upload to model | The vision model accepts images, not raw video | Audio and motion nuance are lost |
 | No shared types package | Simple Metro/TS setup | Backend and app type definitions must be kept in sync manually |
 | No state library | Small app; context is enough | Prop/context growth if the app becomes much larger |
 | In-memory uploads | Simple, no orphaned files | Bounded by `MAX_UPLOAD_MB`; large clips cost RAM briefly; photos have a 5 MB vision cap |
@@ -338,7 +354,7 @@ App.tsx
 - For multiple unrelated users, add login, per-user vehicle ownership, a
   multi-instance rate limiter, and preferably PostgreSQL instead of a single
   SQLite file. See `docs/DEPLOYMENT.md`.
-- The API key is never returned by any endpoint. Logs contain method, path,
+- AI credentials are never returned by any endpoint. Logs contain method, path,
   status and duration only — not bodies or headers.
 - Error responses in production hide internal messages; the full error is logged
   server-side.
@@ -357,9 +373,9 @@ App.tsx
   validation, unknown fields, diagnosis + history, wrong-vehicle rejection,
   deletion cascade, malformed JSON, 404s, AI-disabled 503s, and upload MIME
   validation.
-- **Not covered:** live Anthropic calls (requires a key, non-deterministic) and
-  ffmpeg extraction (machine-dependent). `/health` and startup logs make those
-  capability gaps visible.
+- **Not covered:** live Cloudflare/Anthropic calls (require credentials and are
+  non-deterministic) and ffmpeg extraction (machine-dependent). `/health` and
+  startup logs make those capability gaps visible.
 - **App:** TypeScript strict typecheck plus a Metro production bundle export.
   There is no Jest/Detox suite yet; see Roadmap.
 

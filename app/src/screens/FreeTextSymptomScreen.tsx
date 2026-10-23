@@ -102,7 +102,8 @@ export function FreeTextSymptomScreen({ route, navigation }: Props) {
         <Text style={styles.title}>Tell us what’s happening</Text>
         <Text style={styles.hint}>
           Describe noises, smells, warning lights, or changes in how the {vehicle.type} drives.
-          Plain language is fine — this is sent to Claude only when you tap the button.
+          Plain language is fine — this is sent to Cloudflare Workers AI only when you tap the
+          button, and Cloudflare doesn’t train on or retain it.
         </Text>
 
         <View style={styles.inputWrap}>

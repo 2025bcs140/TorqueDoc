@@ -26,7 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CameraCapture'>;
 
 /** Keep in sync with backend MAX_UPLOAD_MB (default 30). */
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
-/** Anthropic's vision API accepts images up to 5 MB each. */
+/** Keep this in sync with the backend's 5 MB photo limit. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export function CameraCaptureScreen({ route, navigation }: Props) {
@@ -227,15 +227,16 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
       <View style={styles.privacyNote}>
         <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
         <Text style={styles.privacyText}>
-          The file is uploaded to your TorqueDoc backend, which sends it to Anthropic for analysis.
-          It isn’t stored on the server after the request finishes.
+          The file is uploaded to your TorqueDoc backend, which sends it to Cloudflare Workers AI
+          for analysis. Cloudflare doesn’t train on or retain it, and it isn’t stored on the server
+          after the request finishes.
         </Text>
       </View>
 
       {analyzing && (
         <View style={styles.analyzingRow}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={styles.analyzingText}>Sending to Claude for visual inspection…</Text>
+          <Text style={styles.analyzingText}>Sending to Cloudflare for visual inspection…</Text>
         </View>
       )}
     </ScrollView>

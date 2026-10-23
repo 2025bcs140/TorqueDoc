@@ -3,7 +3,7 @@
 TorqueDoc has three deployable pieces:
 
 1. **`backend/`** — the Express API, SQLite database, diagnosis engine and the
-   only place the Anthropic key is read. This must be reachable from the phone.
+   only place AI credentials are read. This must be reachable from the phone.
 2. **`app/` (mobile)** — the Expo client. Expo Go can load it from a development
    server, or Gradle/EAS can produce a standalone Android build. Its API URL is
    baked in at bundle time, so deploy the backend first.
@@ -23,9 +23,28 @@ HTML at request time, so treat it as an abuse gate, not as a user login.
 3. Render reads `render.yaml`, creates the API service `torquedoc-api`, and
    generates `API_ACCESS_TOKEN`. The browser client is served by the same
    service at `/app`.
-4. Add `ANTHROPIC_API_KEY` in the service's **Environment** tab if you want the
-   free-text, photo and video features. Leave it unset to keep the AI routes
-   disabled with a clear `503`.
+4. For free-text, photo and video features, add `CLOUDFLARE_ACCOUNT_ID` and
+   `CLOUDFLARE_API_TOKEN` in the service's **Environment** tab:
+
+   1. Create a free [Cloudflare account](https://dash.cloudflare.com/sign-up)
+      (no credit card is required for Workers Free).
+   2. Open **Workers AI** in the dashboard and copy the **Account ID**.
+   3. Create an API token with Workers AI access and copy it. The token is
+      shown once. Do not put it in `app/.env` or the repository.
+   4. Leave both values unset to keep the AI routes disabled with a clear
+      `503 AI_NOT_CONFIGURED`.
+
+   The free plan includes 10,000 Neurons/day. Cloudflare's Workers AI data
+   policy states **zero retention** for standard inference requests and **no
+   training** on Customer Content. The default
+   `@cf/mistralai/mistral-small-3.1-24b-instruct` handles text and images.
+   Higher-end models may require a paid Workers plan; the default model is
+   available on the free allocation. If you need a cheaper vision model, set
+   `CLOUDFLARE_VISION_MODEL=@cf/meta/llama-3.2-11b-vision-instruct`; it accepts
+   one image per request, while Mistral accepts multiple video frames.
+
+   Anthropic remains an optional fallback if you later add credits. Set
+   `ANTHROPIC_API_KEY`; Cloudflare is preferred when both are configured.
 5. Wait for the API health check at `/health` to pass. The public URL is
    normally `https://torquedoc-api.onrender.com`.
 6. Copy the generated `API_ACCESS_TOKEN` value from Render if you are building
@@ -99,7 +118,8 @@ docker run --rm -p 3000:3000 \
   -e PORT=3000 \
   -e DB_PATH=/data/torquedoc.db \
   -e API_ACCESS_TOKEN=replace-with-a-random-32-character-value \
-  -e ANTHROPIC_API_KEY=sk-ant-... \
+  -e CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id \
+  -e CLOUDFLARE_API_TOKEN=your-workers-ai-token \
   -e TRUST_PROXY=true \
   torquedoc-api
 ```
@@ -117,7 +137,11 @@ A healthy response looks like:
 {
   "ok": true,
   "database": "ok",
-  "ai": { "configured": true, "model": "claude-sonnet-5-5" },
+  "ai": {
+    "configured": true,
+    "provider": "cloudflare",
+    "model": "@cf/mistralai/mistral-small-3.1-24b-instruct"
+  },
   "videoAnalysis": "available",
   "uptimeSeconds": 12
 }
@@ -131,7 +155,11 @@ A healthy response looks like:
 | `DB_PATH` | Yes | Use a path on the persistent volume, e.g. `/data/torquedoc.db`. |
 | `API_ACCESS_TOKEN` | Strongly recommended | 16+ characters. The app sends it as `X-TorqueDoc-Key`. |
 | `TRUST_PROXY` | Yes behind a proxy | Makes rate limiting use `X-Forwarded-For` correctly. |
-| `ANTHROPIC_API_KEY` | For AI features | Server-side only; never put it in `app/.env` or the repository. |
+| `CLOUDFLARE_ACCOUNT_ID` | For AI features | 32-character Cloudflare account id. |
+| `CLOUDFLARE_API_TOKEN` | For AI features | Token with Workers AI access. Server-side only; never put it in `app/.env` or the repository. |
+| `CLOUDFLARE_MODEL` | Optional | Defaults to `@cf/mistralai/mistral-small-3.1-24b-instruct`. |
+| `CLOUDFLARE_VISION_MODEL` | Optional | Separate vision model id; defaults to `CLOUDFLARE_MODEL`. |
+| `ANTHROPIC_API_KEY` | Optional fallback | Server-side only. Cloudflare is preferred when both are configured. |
 | `CORS_ORIGIN` | Optional | Keep `*` for the mobile app and Render static site, or narrow it to your web origin. |
 | `MAX_UPLOAD_MB` | Optional | Default 30 MB. Photos are separately capped at 5 MB. |
 | `RATE_LIMIT_PER_MINUTE` | Optional | Default 240 requests/minute per IP. |
@@ -141,7 +169,8 @@ A healthy response looks like:
 
 - [ ] GitHub repository is private, or you are comfortable with the source
       being public. No `.env` file or database is committed.
-- [ ] `ANTHROPIC_API_KEY` is set only in the hosting provider's secret store.
+- [ ] `CLOUDFLARE_API_TOKEN` (and optional `ANTHROPIC_API_KEY`) is set only in
+      the hosting provider's secret store.
 - [ ] `API_ACCESS_TOKEN` is set and the app's value matches it.
 - [ ] HTTPS is enabled by the host (Render does this automatically).
 - [ ] `/health` passes and `ai.configured` is what you expect.

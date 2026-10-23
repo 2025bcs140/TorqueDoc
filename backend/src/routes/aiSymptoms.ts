@@ -2,10 +2,10 @@ import { Router } from 'express';
 import { getSymptomsForVehicleType } from '../db';
 import { badRequest, isPlainObject, requireString, requireVehicleType } from '../http';
 import {
-  AnthropicRequestError,
-  askClaudeForJson,
-  MissingApiKeyError,
-} from '../services/anthropicClient';
+  AiNotConfiguredError,
+  AiRequestError,
+  askAiForJson,
+} from '../services/aiClient';
 
 const router = Router();
 
@@ -48,7 +48,7 @@ ${description}
 """`;
 
   try {
-    const result = await askClaudeForJson<InterpretResult>(SYSTEM_PROMPT, [
+    const result = await askAiForJson<InterpretResult>(SYSTEM_PROMPT, [
       { type: 'text', text: userPrompt },
     ]);
 
@@ -64,12 +64,12 @@ ${description}
       summary: typeof result.summary === 'string' ? result.summary.slice(0, 500) : '',
     });
   } catch (error) {
-    if (error instanceof MissingApiKeyError) {
+    if (error instanceof AiNotConfiguredError) {
       return res.status(503).json({ error: error.message, code: 'AI_NOT_CONFIGURED' });
     }
     console.error('Symptom interpretation failed:', error);
     const message =
-      error instanceof AnthropicRequestError
+      error instanceof AiRequestError
         ? error.message
         : error instanceof Error
           ? error.message

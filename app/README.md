@@ -186,8 +186,8 @@ uploading; the backend enforces both limits independently.
 
 ## Video analysis
 
-Claude does not accept video files. The app uploads the raw clip, and the
-backend uses system `ffmpeg` to sample up to three frames. Audio is not
+The vision model accepts images, not raw video. The app uploads the raw clip,
+and the backend uses system `ffmpeg` to sample up to three frames. Audio is not
 analyzed. If ffmpeg is not installed, photos still work and video returns a
 clear `FFMPEG_NOT_FOUND` message from the backend.
 
@@ -259,9 +259,9 @@ Record a shorter clip, or lower the resolution. The limit is
 `CameraCaptureScreen.tsx`; keep them in sync if you change it.
 
 **AI features say not configured**
-That comes from the backend (`503 AI_NOT_CONFIGURED`). Add a real
-`ANTHROPIC_API_KEY` to `backend/.env` and restart the backend. The checklist
-still works without AI.
+That comes from the backend (`503 AI_NOT_CONFIGURED`). Add
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` to `backend/.env` and restart
+the backend. The checklist still works without AI.
 
 **HTTP works in Expo Go but might not in a standalone build**
 Expo Go allows cleartext LAN traffic during development. Store builds should use

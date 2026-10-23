@@ -17,6 +17,8 @@ test('TorqueDoc API', async (t) => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'torquedoc-api-test-'));
   process.env.DB_PATH = path.join(tempDir, 'test.db');
   process.env.ANTHROPIC_API_KEY = '';
+  process.env.CLOUDFLARE_ACCOUNT_ID = '';
+  process.env.CLOUDFLARE_API_TOKEN = '';
   process.env.LOG_REQUESTS = 'false';
   process.env.NODE_ENV = 'test';
   process.env.MAX_UPLOAD_MB = '10';
@@ -67,6 +69,8 @@ test('TorqueDoc API', async (t) => {
     assert.equal(body.ok, true);
     assert.equal(body.database, 'ok');
     assert.equal(body.ai.configured, false);
+    assert.equal(body.ai.provider, null);
+    assert.equal(body.ai.model, null);
     assert.ok(['available', 'unavailable'].includes(body.videoAnalysis));
   });
 

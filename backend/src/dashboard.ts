@@ -714,7 +714,9 @@ export function renderDashboard(apiAccessToken: string): string {
       state.health = health;
       $("apiDot").className = "dot on";
       $("apiStatus").textContent = "API online";
-      $("aiPill").textContent = health.ai && health.ai.configured ? "AI: " + health.ai.model : "AI: not configured";
+      $("aiPill").textContent = health.ai && health.ai.configured
+        ? "AI: " + (health.ai.provider ? health.ai.provider + " / " : "") + health.ai.model
+        : "AI: not configured";
     } catch (error) {
       $("apiDot").className = "dot off";
       $("apiStatus").textContent = "API unreachable";
