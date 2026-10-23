@@ -38,6 +38,12 @@ HTML at request time, so treat it as an abuse gate, not as a user login.
    5. Leave both values unset to keep the AI routes disabled with a clear
       `503 AI_NOT_CONFIGURED`.
 
+   These two variables are declared with `sync: false` in `render.yaml`. A
+   Blueprint sync does **not** copy or create them; it only creates the
+   non-secret `CLOUDFLARE_MODEL` value. Add both keys in the service's
+   **Environment** tab and click **Save, rebuild, and deploy**. If the sync
+   details only mention `CLOUDFLARE_MODEL`, the secrets still need this step.
+
    The free plan includes 10,000 Neurons/day. Cloudflare's Workers AI data
    policy states **zero retention** for standard inference requests and **no
    training** on Customer Content. The default
