@@ -132,6 +132,7 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
         kind,
         mimeType: asset.mimeType,
         fileName: asset.fileName ?? undefined,
+        file: asset.file,
       });
 
       if (analysis.matchedSymptomIds.length === 0) {
