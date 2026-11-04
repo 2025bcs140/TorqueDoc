@@ -91,8 +91,10 @@ async function extractFrameAt(
       '-frames:v',
       '1',
       // Keep frames small enough for fast uploads and predictable token cost.
+      // The comma inside min() must be escaped so ffmpeg doesn't treat it as a
+      // filter separator.
       '-vf',
-      'scale=min(1280,iw):-2',
+      'scale=min(1280\\,iw):-2',
       '-q:v',
       '3',
       '-y',
@@ -137,6 +139,11 @@ export async function extractVideoFramesBase64(videoBuffer: Buffer): Promise<str
         if (isMissingBinary(error)) throw new FfmpegNotFoundError();
         // A particular offset can fail on very short or variable-frame-rate
         // clips. Skip that frame rather than failing the whole request.
+        console.warn(
+          `Could not extract a video frame at ${timeSeconds.toFixed(2)}s: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`
+        );
       }
     };
 
