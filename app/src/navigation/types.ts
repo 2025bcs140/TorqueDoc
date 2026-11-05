@@ -9,6 +9,7 @@ export type RootStackParamList = {
   SymptomChecklist: { vehicleId: string };
   FreeTextSymptom: { vehicleId: string };
   CameraCapture: { vehicleId: string };
+  AudioCapture: { vehicleId: string };
   DiagnosisResult: {
     vehicleId: string;
     matches: DiagnosisMatch[];

@@ -1,8 +1,8 @@
 {
   "name": "torquedoc-backend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Express + SQLite API for TorqueDoc: vehicle garage, repair catalog, diagnosis engine and privacy-respecting AI symptom/photo analysis.",
+  "description": "Express + SQLite API for TorqueDoc: private accounts, vehicle garage, repair catalog, diagnosis engine and privacy-respecting AI symptom/photo/video/audio analysis.",
   "type": "commonjs",
   "engines": {
     "node": ">=22.5.0"
@@ -13,8 +13,8 @@
     "build": "tsc",
     "serve": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/catalog.test.ts test/diagnosisEngine.test.ts test/anthropicClient.test.ts test/cloudflareClient.test.ts test/cloudflareAdapter.test.ts test/api.test.ts",
-    "test:watch": "node --import tsx --test --watch test/catalog.test.ts test/diagnosisEngine.test.ts test/anthropicClient.test.ts test/cloudflareClient.test.ts test/cloudflareAdapter.test.ts test/api.test.ts"
+    "test": "node --import tsx --test test/catalog.test.ts test/diagnosisEngine.test.ts test/anthropicClient.test.ts test/cloudflareClient.test.ts test/cloudflareAdapter.test.ts test/audioAnalysis.test.ts test/api.test.ts",
+    "test:watch": "node --import tsx --test --watch test/catalog.test.ts test/diagnosisEngine.test.ts test/anthropicClient.test.ts test/cloudflareClient.test.ts test/cloudflareAdapter.test.ts test/audioAnalysis.test.ts test/api.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

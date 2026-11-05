@@ -7,14 +7,15 @@ same network can reach it.
 - JSON request bodies use `Content-Type: application/json`.
 - Media uploads use `multipart/form-data`.
 - Timestamps are ISO 8601 UTC strings.
-- When the backend sets `API_ACCESS_TOKEN`, every route except `/`, `/app`,
-  `/dashboard` and `/health` requires the header `X-TorqueDoc-Key: <token>` (or
-  `Authorization: Bearer <token>`). The app sends it automatically.
+- When the backend sets `API_ACCESS_TOKEN`, `/auth/register`, `/auth/login` and
+  all account/data/AI routes require `X-TorqueDoc-Key: <token>`. The app sends it
+  automatically. This is an abuse gate, not user authentication.
+- Garage, catalog, diagnosis, history and AI routes additionally require a
+  signed-in account: `Authorization: Bearer <opaque-session-token>`.
 - `/health` is deliberately public so hosting platforms can probe it.
 - `/app` is the Expo web client. Its static assets are public; Express injects
-  the shared key into the HTML at request time. `/dashboard` is a public,
-  dependency-free owner page that does the same. Both are demo/owner tools, not
-  user authentication.
+  the shared key into the HTML at request time. `/dashboard` is an
+  account-aware owner page that asks for the same email/password login.
 
 ## Errors
 
@@ -36,16 +37,21 @@ Every error response has the same shape:
 | 400 | `INVALID_JSON` | Body is not valid JSON. |
 | 400 | `UPLOAD_ERROR` | Multipart parsing failed (unexpected field or too many files). |
 | 401 | `UNAUTHORIZED` | Missing/wrong shared key when `API_ACCESS_TOKEN` is configured. |
-| 404 | `NOT_FOUND` | No route, vehicle, guide or diagnosis with that id. |
-| 429 | `RATE_LIMITED` | Per-IP request or AI rate limit exceeded. Check `Retry-After`. |
+| 401 | `AUTH_REQUIRED` | Missing, expired or revoked account session. |
+| 401 | `INVALID_CREDENTIALS` | Wrong email or password on login. |
+| 404 | `NOT_FOUND` | No route, vehicle, guide or diagnosis with that id, or it belongs to another account. |
+| 409 | `EMAIL_TAKEN` | Registration email already exists (case-insensitive). |
+| 429 | `RATE_LIMITED` | Per-IP request, auth or AI rate limit exceeded. Check `Retry-After`. |
 | 413 | `FILE_TOO_LARGE` | Upload exceeds `MAX_UPLOAD_MB` (default 30 MB). |
 | 413 | `PHOTO_TOO_LARGE` | Photo exceeds the vision API's 5 MB per-image limit. |
+| 413 | `AUDIO_TOO_LARGE` | Audio exceeds the 20 MB audio limit. |
 | 413 | `PAYLOAD_TOO_LARGE` | JSON body exceeds 1 MB. |
 | 422 | `VIDEO_UNREADABLE` / `VIDEO_NO_FRAMES` | ffmpeg could not read usable frames from the clip. |
+| 422 | `AUDIO_UNREADABLE` | ffmpeg could not find a decodable audio track. |
 | 500 | `INTERNAL_ERROR` | Unexpected server error (message is generic in production). |
 | 502 | `AI_REQUEST_FAILED` | The configured AI provider rejected the request, returned invalid JSON, or timed out. |
 | 503 | `AI_NOT_CONFIGURED` | No valid Cloudflare Workers AI credentials (or optional Anthropic key) are set. |
-| 503 | `FFMPEG_NOT_FOUND` | Video analysis requested, but ffmpeg/ffprobe are not on `PATH`. |
+| 503 | `FFMPEG_NOT_FOUND` | Video or audio analysis requested, but ffmpeg/ffprobe are not on `PATH`. |
 
 ---
 
@@ -59,14 +65,22 @@ Liveness plus capability probe. Returns `503` if the database cannot be queried.
 {
   "ok": true,
   "database": "ok",
-  "ai": { "configured": false, "provider": null, "model": null },
+  "ai": {
+    "configured": false,
+    "provider": null,
+    "model": null,
+    "audioModel": null
+  },
+  "auth": "required",
   "videoAnalysis": "unavailable",
+  "audioAnalysis": "unavailable",
   "uptimeSeconds": 42
 }
 ```
 
 `videoAnalysis` is `"available"` only when both `ffmpeg` and `ffprobe` respond.
-The check is cached for the life of the process.
+`audioAnalysis` additionally requires a Cloudflare provider. Checks are cached
+for the life of the process.
 
 ### `GET /`
 
@@ -79,6 +93,75 @@ present), so opening the base URL does not dump raw JSON at a non-developer.
 The Expo web client. It is served from `backend/web-dist` when present. The HTML
 contains a small `window.__TORQUEDOC_CONFIG__` block with the same-origin API
 URL and the shared key, injected by the server at request time.
+
+---
+
+## Accounts
+
+TorqueDoc accounts are email/password based. Registering returns an opaque
+session token, and every garage, catalog, diagnosis, history and AI request must
+send it as `Authorization: Bearer <token>`. Sessions last 30 days. Only a
+SHA-256 hash of the token is stored server-side; the raw token is returned once.
+
+A new account starts with two deletable example vehicles so the app is not
+empty. Garage and history data are private to the account that created them.
+
+### `POST /auth/register`
+
+```json
+{
+  "displayName": "Sam",
+  "email": "sam@example.com",
+  "password": "correct-horse-battery"
+}
+```
+
+- `email` required, valid address, case-insensitive.
+- `password` required, 8–200 characters.
+- `displayName` optional, 2–60 characters; defaults to the email prefix.
+
+`201 Created`:
+
+```json
+{
+  "token": "tds_4tY...opaque...",
+  "expiresAt": "2026-12-04T12:00:00.000Z",
+  "user": {
+    "id": "7f1d9c6d-...",
+    "email": "sam@example.com",
+    "displayName": "Sam",
+    "createdAt": "2026-11-04T12:00:00.000Z"
+  }
+}
+```
+
+A duplicate email returns `409 EMAIL_TAKEN`. Register and login are rate-limited
+per IP.
+
+### `POST /auth/login`
+
+```json
+{ "email": "sam@example.com", "password": "correct-horse-battery" }
+```
+
+`200 OK` returns the same `{ token, expiresAt, user }` shape. A wrong email or
+password both return `401 INVALID_CREDENTIALS` (no account enumeration).
+
+### `GET /auth/me`
+
+Requires a session. Returns:
+
+```json
+{ "user": { "id": "7f1d9c6d-...", "email": "sam@example.com", "displayName": "Sam", "createdAt": "..." } }
+```
+
+### `POST /auth/logout`
+
+Requires a session. Revokes the current token and returns `204 No Content`.
+
+The app stores only the session token in AsyncStorage. It never stores the
+password. A `401 AUTH_REQUIRED` means the session expired or was revoked; sign in
+again.
 
 ---
 
@@ -266,7 +349,7 @@ Everything, unfiltered, for tooling and future clients.
   **and apply to that vehicle type**.
 - `vehicleId` optional. If present it must exist and its `type` must match
   `vehicleType`; this prevents logging a car diagnosis against a motorcycle.
-- `source` optional: `checklist` (default), `free_text`, `media`.
+- `source` optional: `checklist` (default), `free_text`, `media`, `audio`.
 
 Response:
 
@@ -326,16 +409,21 @@ Fetches one saved record. Used by the app's history detail screen.
 Both endpoints are optional. They return `503 AI_NOT_CONFIGURED` when the
 backend has no valid AI credentials, and `502 AI_REQUEST_FAILED` on an upstream
 failure. Cloudflare Workers AI is preferred; set `CLOUDFLARE_ACCOUNT_ID` and
-`CLOUDFLARE_API_TOKEN`. The model is set with `CLOUDFLARE_MODEL` (default
-`@cf/mistralai/mistral-small-3.1-24b-instruct`). Anthropic remains an optional
-fallback configured with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`.
+`CLOUDFLARE_API_TOKEN`. Text/vision use `CLOUDFLARE_MODEL` (default
+`@cf/mistralai/mistral-small-3.1-24b-instruct`); sound uses
+`CLOUDFLARE_AUDIO_MODEL` (default `@cf/cloudflare/clef-omni`). Keep the
+Cloudflare account on Workers Free: 10,000 Neurons/day are included, and
+requests beyond that fail instead of billing. Anthropic remains an optional
+paid text/vision fallback in the code, configured with `ANTHROPIC_API_KEY` and
+`ANTHROPIC_MODEL`; it is not required, is not used in the free deployment, and
+cannot analyze audio.
 
 ### `POST /v1/symptoms/interpret`
 
 ```json
 {
   "vehicleType": "car",
-  "description": "There's a high-pitched squeal whenever I brake, and the pedal feels soft."
+  "description": "There's a high-pitched squeal and a grinding noise whenever I brake."
 }
 ```
 
@@ -345,8 +433,8 @@ provider and filters the reply to known ids.
 
 ```json
 {
-  "matchedSymptomIds": ["s_brake_squeal", "s_brake_pedal_soft"],
-  "summary": "A squealing noise when braking with a soft pedal."
+  "matchedSymptomIds": ["s_squeal_braking", "s_grinding_braking"],
+  "summary": "Brakes squeal and grind when stopping."
 }
 ```
 
@@ -360,21 +448,30 @@ with the returned ids, which keeps the ranking deterministic and auditable.
 | Field | Value |
 |---|---|
 | `vehicleType` | `car` or `motorcycle` |
-| `kind` | `photo` or `video` |
-| `file` | The image or video file |
+| `kind` | `photo`, `video` or `audio` |
+| `file` | The image, video or audio file |
+| `context` | Optional audio hint: `At idle`, `When revving`, `When braking`, `When turning`, `When starting`, `Not sure` |
 
 Photos: JPEG, PNG, WebP or GIF, up to 5 MB each (the vision API's per-image
 limit). Videos: MP4, MOV, WebM, AVI, 3GP or MKV; the backend extracts up to three
 JPEG frames with ffmpeg. The overall multipart upload limit is `MAX_UPLOAD_MB`
 (30 by default). For videos, the app records at most 15 seconds.
 
+Audio: MP3, WAV, M4A/AAC, OGG/Opus or WebM, up to 20 MB. ffmpeg transcodes the
+clip to mono 16 kHz 16-bit WAV and trims it to 30 seconds before sending it to
+`clef-omni`. The model returns typed sound probabilities; only genuine catalog
+sounds (brake squeal, brake grind, rough idle, starter click, exhaust rasp,
+chain slap) become `matchedSymptomIds`. Engine knock, ticking, belt squeal and
+cooling hiss are returned in `detectedLabels` and `notes` without forcing a
+catalog diagnosis. Audio is processed for the request only and is not stored.
+
 ```json
 {
-  "matchedSymptomIds": ["s_coolant_leak"],
+  "matchedSymptomIds": ["s_squeal_braking"],
   "detectedLabels": [
-    { "label": "green fluid residue near radiator hose", "confidence": 0.82 }
+    { "label": "Brake squeal", "confidence": 0.82 }
   ],
-  "notes": "A coolant leak is visible near the lower radiator hose; the clamp looks corroded."
+  "notes": "Audio model's best match: Brake squeal (82% sound-match confidence). This is a sound-pattern match, not a confirmed mechanical diagnosis."
 }
 ```
 
@@ -390,27 +487,41 @@ Possible failures:
   calling the AI provider)
 - `413 FILE_TOO_LARGE`
 - `413 PHOTO_TOO_LARGE` (image over the vision API's 5 MB limit)
+- `413 AUDIO_TOO_LARGE` (audio over 20 MB)
 - `422 VIDEO_UNREADABLE` / `VIDEO_NO_FRAMES`
+- `422 AUDIO_UNREADABLE`
 - `503 FFMPEG_NOT_FOUND`
 - `503 AI_NOT_CONFIGURED`
+
+Sound findings are **not** a confirmed mechanical diagnosis, and the app says
+so. A clip with no abnormal sound returns an empty `matchedSymptomIds` with a
+note.
 
 ---
 
 ## Examples
 
-PowerShell:
+PowerShell (when `API_ACCESS_TOKEN` is set, add
+`"X-TorqueDoc-Key" = $env:TORQUEDOC_KEY` to the headers as well):
 
 ```powershell
 # Health
 Invoke-RestMethod http://localhost:3000/health
 
+# Create an account (returns a session token)
+$register = @{
+  displayName = 'Sam'; email = 'sam@example.com'; password = 'correct-horse-battery'
+} | ConvertTo-Json
+$auth = Invoke-RestMethod http://localhost:3000/auth/register `
+  -Method Post -ContentType 'application/json' -Body $register
+$headers = @{ Authorization = "Bearer $($auth.token)" }
+
 # Add a car
 $body = @{
   type = 'car'; make = 'Mazda'; model = '3'; year = 2019; mileage = 42000
 } | ConvertTo-Json
-
 $created = Invoke-RestMethod http://localhost:3000/vehicles `
-  -Method Post -ContentType 'application/json' -Body $body
+  -Method Post -ContentType 'application/json' -Headers $headers -Body $body
 
 # Diagnose
 $diagnose = @{
@@ -419,18 +530,30 @@ $diagnose = @{
   vehicleId = $created.vehicle.id
   source = 'checklist'
 } | ConvertTo-Json
-
 Invoke-RestMethod http://localhost:3000/diagnose `
-  -Method Post -ContentType 'application/json' -Body $diagnose
+  -Method Post -ContentType 'application/json' -Headers $headers -Body $diagnose
 ```
 
 curl (macOS/Linux):
 
 ```bash
 curl -s http://localhost:3000/health | jq
-curl -s "http://localhost:3000/symptoms?vehicleType=motorcycle" | jq
+
+TOKEN=$(curl -s -X POST http://localhost:3000/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"email":"sam@example.com","password":"correct-horse-battery"}' | jq -r .token)
+
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3000/symptoms?vehicleType=motorcycle" | jq
 
 curl -s -X POST http://localhost:3000/diagnose \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' \
   -d '{"vehicleType":"car","symptomIds":["s_rough_idle","s_engine_stalls_idle"]}' | jq
+
+# Recorded sound (20 MB / 30 seconds max)
+curl -s -X POST http://localhost:3000/v1/media/analyze \
+  -H "Authorization: Bearer $TOKEN" \
+  -F vehicleType=car -F kind=audio -F context='When braking' \
+  -F file=@brake-squeal.m4a | jq
 ```

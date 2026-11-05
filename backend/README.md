@@ -1,8 +1,9 @@
 # TorqueDoc backend
 
-Express 5 + TypeScript API that owns the SQLite database, the diagnosis rule
-engine, and both AI-assisted features. The Cloudflare Workers AI credentials
-(or optional Anthropic key) live only here and are never sent to the mobile app.
+Express 5 + TypeScript API that owns the SQLite database, account sessions, the
+private garage, the diagnosis rule engine, and all AI-assisted features. The
+Cloudflare Workers AI credentials (or an optional paid Anthropic key) live only here and
+are never sent to the mobile app.
 
 For the full endpoint reference see [`../docs/API.md`](../docs/API.md). For design
 decisions and trade-offs see [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md).
@@ -11,8 +12,8 @@ decisions and trade-offs see [`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md
 
 - **Node.js 22.5+** (Node 24 LTS recommended). This project uses the built-in
   `node:sqlite` module, which does not exist in older Node versions.
-- **ffmpeg and ffprobe on `PATH`** — only for video analysis. Photo analysis and
-  every non-AI feature work without it.
+- **ffmpeg and ffprobe on `PATH`** — only for video and recorded-sound analysis.
+  Photo analysis and every non-AI feature work without it.
   - Windows: `winget install Gyan.FFmpeg`, then reopen the terminal.
   - macOS: `brew install ffmpeg`
   - Debian/Ubuntu: `sudo apt install ffmpeg`
@@ -59,21 +60,23 @@ directory; values already present in the process environment take precedence.
 |---|---|---|
 | `PORT` | `3000` | `0` lets the OS choose (tests use this). |
 | `DB_PATH` | `./torquedoc.db` | Relative paths resolve from `backend/`, not the shell's cwd. |
-| `CLOUDFLARE_ACCOUNT_ID` | empty | 32-character Cloudflare account id. Enables both AI endpoints when paired with a token. |
+| `CLOUDFLARE_ACCOUNT_ID` | empty | 32-character Cloudflare account id. Enables the AI endpoints when paired with a token. |
 | `CLOUDFLARE_API_TOKEN` | empty | Token with Workers AI access. Server-side only; placeholder values are rejected. |
 | `CLOUDFLARE_MODEL` | `@cf/mistralai/mistral-small-3.1-24b-instruct` | Text and vision model id. |
 | `CLOUDFLARE_VISION_MODEL` | same as `CLOUDFLARE_MODEL` | Optional separate vision model. Llama 3.2 Vision uses a single image and requires a one-time Meta license agreement; Mistral accepts multiple frames. |
+| `CLOUDFLARE_AUDIO_MODEL` | `@cf/cloudflare/clef-omni` | Typed audio sound-pattern model. Free-tier eligible, roughly 780 tokens/audio minute, zero retention. |
 | `CLOUDFLARE_API_BASE_URL` | `https://api.cloudflare.com/client/v4` | Normally leave unchanged; useful for a mock server in tests. |
-| `ANTHROPIC_API_KEY` | empty | Optional legacy fallback. Cloudflare is preferred when both are configured. |
+| `ANTHROPIC_API_KEY` | empty | Optional paid legacy fallback. Leave empty for the free Cloudflare-only deployment; Cloudflare is preferred when both are configured. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | Any Anthropic Messages-API model id. |
 | `AI_TIMEOUT_MS` | `60000` | Per-request timeout, clamped to 5s–180s. |
-| `MAX_UPLOAD_MB` | `30` | Multer file-size limit. Photos are additionally capped at 5 MB for the vision API. |
+| `MAX_UPLOAD_MB` | `30` | Multer file-size limit. Photos are additionally capped at 5 MB, audio at 20 MB, and audio is trimmed to 30 seconds. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated allow-list. |
 | `LOG_REQUESTS` | `true` | Set `false` for silent tests/benchmarks. |
-| `API_ACCESS_TOKEN` | empty | Optional shared key for public deployments. When set, all routes except `/` and `/health` require `X-TorqueDoc-Key` or `Authorization: Bearer`. |
+| `API_ACCESS_TOKEN` | empty | Shared abuse-gate key for public deployments. When set, auth and data routes require `X-TorqueDoc-Key` (or the app can use its account session). This is not account authentication. |
 | `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy so rate limiting sees the real client IP. |
 | `RATE_LIMIT_PER_MINUTE` | `240` | Per-IP request cap. |
 | `AI_RATE_LIMIT_PER_MINUTE` | `10` | Per-IP cap for `/v1/*`. |
+| `AUTH_RATE_LIMIT_PER_MINUTE` | `12` | Per-IP cap for register/login attempts. |
 
 `backend/.env` and the database files are gitignored. Do not commit real keys.
 For a Docker/Render deployment see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
@@ -81,8 +84,10 @@ For a Docker/Render deployment see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.
 Cloudflare Workers AI is the recommended free provider: the Workers Free plan
 includes 10,000 Neurons/day with no credit card, and Cloudflare documents zero
 retention for standard inference plus no training on submitted Customer Content.
-Create an API token with Workers AI access. Missing credentials produce a clear
-`503 AI_NOT_CONFIGURED`; the checklist, garage and library keep working.
+Create an API token with Workers AI access. Audio uses `clef-omni`, which is
+free-tier eligible and returns typed sound-pattern probabilities. Missing
+credentials produce a clear `503 AI_NOT_CONFIGURED`; the checklist, garage and
+library keep working.
 
 ## Architecture in one paragraph
 
@@ -91,15 +96,19 @@ imported by the integration tests, which run the real app on an ephemeral port
 against a throwaway database. Routes contain only HTTP parsing/validation; all
 SQL lives in `db.ts`, and the ranking logic is a pure function in
 `services/diagnosisEngine.ts`. That pure function takes a catalog snapshot, so
-it can be tested without a database. AI routes call `services/aiClient.ts`,
-which selects Cloudflare Workers AI (preferred) or Anthropic. The provider
-adapters own the timeout, retry, JSON extraction, and credential handling.
+it can be tested without a database. Account sessions are resolved by
+`middleware/userAuth.ts`; every private query includes the account id. AI routes
+call `services/aiClient.ts` (text/vision) or `services/audioAnalysis.ts`
+(sound). The provider adapters own the timeout, retry, JSON extraction, and
+credential handling.
 
 ## Database and catalog
 
 SQLite lives at `DB_PATH` (default `backend/torquedoc.db`). The schema is
-created automatically with `CREATE TABLE IF NOT EXISTS`; there is no separate
-migration command.
+created automatically with `CREATE TABLE IF NOT EXISTS`, and additive account
+migrations run on startup; there is no separate migration command. An old
+single-tenant database is upgraded in place, and its unowned vehicles are
+claimed by the first account created.
 
 The seed catalog is in `src/data/catalog.ts`. It has a `CATALOG_VERSION`
 constant:
@@ -108,8 +117,8 @@ constant:
 - On the next start, the three catalog tables are replaced in one transaction.
 - Diagnosis history stores a snapshot of its matches, so old records remain
   readable.
-- Two example vehicles are seeded once, only for a brand-new database. Deleting
-  them permanently sets a meta flag so they do not come back.
+- Each new account starts with two example vehicles. They belong only to that
+  account and can be deleted permanently.
 
 To start over completely, stop the server and delete `torquedoc.db` (plus any
 `-wal`/`-shm` files). They are recreated on the next start.
@@ -131,6 +140,8 @@ where motorcycle confidence incorrectly counted car-only symptoms.
 `test/api.test.ts` starts the real app against a temporary database and covers:
 
 - health and API index
+- required sessions, registration, duplicate email, login and logout
+- per-account garage/history isolation
 - catalog filtering
 - vehicle create/read/update/delete and validation
 - diagnosis, history, and single-record fetch
@@ -138,7 +149,8 @@ where motorcycle confidence incorrectly counted car-only symptoms.
 - deletion cascade
 - malformed JSON and 404s
 - AI endpoints returning `503 AI_NOT_CONFIGURED`
-- media MIME/kind validation, missing files, the 5 MB photo cap, and the ffmpeg-unavailable video path
+- media MIME/kind validation, missing files, the 5 MB photo cap, the 20 MB audio cap, and the ffmpeg-unavailable video/audio paths
+- audio request construction, typed-answer interpretation, and honest unmapped-sound notes (`test/audioAnalysis.test.ts`)
 
 The tests do **not** call Cloudflare or Anthropic and do not require ffmpeg.
 `test/cloudflareClient.test.ts` checks request mapping, response extraction and
@@ -149,8 +161,16 @@ environment variables are set before importing the app.
 
 ```powershell
 Invoke-RestMethod http://localhost:3000/health
-Invoke-RestMethod http://localhost:3000/vehicles
-Invoke-RestMethod "http://localhost:3000/symptoms?vehicleType=motorcycle"
+
+$register = @{
+  email = 'smoke@example.com'; password = 'correct-horse-battery'
+} | ConvertTo-Json
+$auth = Invoke-RestMethod http://localhost:3000/auth/register `
+  -Method Post -ContentType 'application/json' -Body $register
+$headers = @{ Authorization = "Bearer $($auth.token)" }
+
+Invoke-RestMethod http://localhost:3000/vehicles -Headers $headers
+Invoke-RestMethod "http://localhost:3000/symptoms?vehicleType=motorcycle" -Headers $headers
 
 $body = @{
   vehicleType = 'car'
@@ -158,7 +178,7 @@ $body = @{
 } | ConvertTo-Json
 
 Invoke-RestMethod http://localhost:3000/diagnose `
-  -Method Post -ContentType 'application/json' -Body $body
+  -Method Post -ContentType 'application/json' -Headers $headers -Body $body
 ```
 
 ## Troubleshooting
@@ -180,7 +200,8 @@ computer.
 **AI returns 503 `AI_NOT_CONFIGURED`**
 Neither provider is fully configured. Set `CLOUDFLARE_ACCOUNT_ID` (32 hex
 characters) and `CLOUDFLARE_API_TOKEN` (a token with Workers AI access) and
-restart the backend. Anthropic remains an optional fallback.
+restart the backend. Anthropic remains an optional paid fallback; it is not used
+by the free deployment.
 
 **AI returns 502**
 Check the backend console. Common causes are an invalid Cloudflare token, a
@@ -188,7 +209,7 @@ token without Workers AI permission, a model unavailable on your plan, a daily
 Neuron limit, or a timeout. The upstream message is forwarded without the
 credential.
 
-**Video returns 503 `FFMPEG_NOT_FOUND`**
+**Video or audio returns 503 `FFMPEG_NOT_FOUND`**
 Install ffmpeg and verify **both** commands work in a new terminal:
 
 ```bash
@@ -198,21 +219,27 @@ ffprobe -version
 
 Restart the backend so the cached availability check is refreshed.
 
-**Video returns 422**
-The clip may be corrupt, too short, or use a codec ffmpeg cannot decode. Try an
-MP4/MOV, or attach a photo.
+**Video returns 422 / audio returns 422**
+The clip may be corrupt, too short, have no audio track, or use a codec ffmpeg
+cannot decode. Try an MP4/MOV for video or WAV/MP3/M4A for sound. `AUDIO_UNREADABLE`
+means no decodable audio was found.
 
 ## Security
 
-- There are no user accounts. A public deployment is a **single shared garage
-  and history**, even with `API_ACCESS_TOKEN` set.
-- `API_ACCESS_TOKEN` plus per-IP rate limits are an abuse gate for a personal
-  demo, not multi-user authentication. For multiple unrelated users, add login,
-  per-user ownership, and a multi-instance rate limiter (Redis or the host's
-  edge limiter) first.
+- Accounts use email/password login. Passwords are scrypt-hashed, session tokens
+  are random and stored only as SHA-256 hashes, and sessions expire after 30
+  days. The API returns only the public user shape.
+- Every vehicle, diagnosis and history query is scoped to the signed-in user.
+  A valid id owned by another account returns `404`.
+- `API_ACCESS_TOKEN` is an additional abuse gate, not account authentication.
+  It is embedded in the web/APK client and should not be treated as a secret.
+- Use per-IP rate limits plus a shared/WAF limiter for an internet-facing
+  deployment across multiple instances. The built-in limiter is in-memory and
+  per-process.
 - Run public deployments behind HTTPS. Render/Railway terminate TLS for you;
   a plain Docker host needs a reverse proxy such as Caddy or nginx.
 - Request logs do not include bodies or headers, so keys and uploads are not
   written to the console.
 - Uploaded media is processed in memory/temp files and is not persisted.
+  Diagnosis history stores symptom/cause snapshots, not media.
 - Error responses hide internal messages in production (`NODE_ENV=production`).

@@ -1,9 +1,9 @@
 # Render Blueprint for the TorqueDoc API.
 #
 # The free plan is enough to try the app from Expo Go, but its filesystem is
-# ephemeral: garage/history records reset when the service redeploys or wakes
-# from sleep. For durable data, upgrade the plan and uncomment the disk block
-# below (a persistent disk requires a paid instance type).
+# ephemeral: accounts, sessions, garages and history reset when the service
+# redeploys or wakes from sleep. For durable data, upgrade the plan and
+# uncomment the disk block below (a persistent disk requires a paid instance).
 services:
   - type: web
     name: torquedoc-api
@@ -25,18 +25,21 @@ services:
       # EXPO_PUBLIC_API_ACCESS_TOKEN before building the app.
       - key: API_ACCESS_TOKEN
         generateValue: true
-      # Cloudflare Workers AI free tier: no credit card, 10,000 Neurons/day,
-      # zero retention and no training on submitted content. Create a free
-      # Cloudflare account and an API token with Workers AI access, then set
-      # these two values in the Render dashboard. Leave them unset to keep AI
-      # disabled (the routes return a clear 503).
+      # Cloudflare Workers AI Free plan: no credit card, 10,000 Neurons/day,
+      # zero retention and no training on submitted content. Keep the account on
+      # Workers Free so the daily overage fails instead of billing. Create a free
+      # account and an API token with Workers AI access, then set these values in
+      # the Render dashboard. Leave them unset to keep AI disabled (503).
       - key: CLOUDFLARE_ACCOUNT_ID
         sync: false
       - key: CLOUDFLARE_API_TOKEN
         sync: false
       - key: CLOUDFLARE_MODEL
         value: "@cf/mistralai/mistral-small-3.1-24b-instruct"
-      # Optional legacy fallback if you later add Anthropic credits.
+      - key: CLOUDFLARE_AUDIO_MODEL
+        value: "@cf/cloudflare/clef-omni"
+      # Optional paid legacy fallback. Leave ANTHROPIC_API_KEY unset for this
+      # free deployment; Cloudflare is the supported provider.
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL

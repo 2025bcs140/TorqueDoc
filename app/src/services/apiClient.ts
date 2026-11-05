@@ -1,3 +1,5 @@
+import { getAuthToken, notifyUnauthorized } from './authToken';
+
 /**
  * Single HTTP entry point for the app.
  *
@@ -5,9 +7,9 @@
  * - Adds a timeout so a wrong LAN IP fails in a useful way instead of hanging.
  * - Turns non-2xx responses into `ApiError` with the backend's message/code.
  *
- * Every request goes through here. A hosted backend can require the shared
- * `EXPO_PUBLIC_API_ACCESS_TOKEN`; see docs/ARCHITECTURE.md for why that is an
- * abuse gate rather than full user authentication.
+ * Every request goes through here. The shared `X-TorqueDoc-Key` is only an
+ * abuse gate; the `Authorization: Bearer <session>` header is the real account
+ * session, and every garage/diagnosis route requires it.
  */
 
 interface RuntimeConfig {
@@ -94,6 +96,7 @@ export async function apiFetch<T>(
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const sessionToken = getAuthToken();
 
   let response: Response;
   try {
@@ -105,9 +108,11 @@ export async function apiFetch<T>(
         // Only JSON string bodies get this header; FormData must set its own
         // multipart boundary or uploads will fail.
         ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
-        // Public deployments can require a shared key. This value is bundled
-        // into the app, so it is an abuse gate, not user authentication.
+        // The shared key is a deployment abuse gate, not user authentication.
         ...(API_ACCESS_TOKEN ? { 'X-TorqueDoc-Key': API_ACCESS_TOKEN } : {}),
+        // The session token is the real account credential. It is opaque,
+        // server-issued, and never contains the user's password.
+        ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
         ...init?.headers,
       },
     });
@@ -128,6 +133,12 @@ export async function apiFetch<T>(
 
   if (!response.ok) {
     const { message, code } = await parseErrorMessage(response);
+    // An expired/revoked session should return the user to the sign-in screen.
+    // A wrong shared deployment key also returns 401 (`UNAUTHORIZED`); that is
+    // a configuration error, not a lost account session, so keep the session.
+    if (response.status === 401 && sessionToken && code === 'AUTH_REQUIRED') {
+      notifyUnauthorized();
+    }
     throw new ApiError(response.status, message, code);
   }
 

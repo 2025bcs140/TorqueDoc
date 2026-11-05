@@ -8,7 +8,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, touchTarget, typography } from '../theme/tokens';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, gradients, radii, shadows, spacing, touchTarget, typography } from '../theme/tokens';
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -53,6 +54,14 @@ export function PrimaryButton({
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       accessibilityHint={accessibilityHint}
     >
+      {variant === 'primary' && (
+        <LinearGradient
+          colors={gradients.accent}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {loading ? (
         <ActivityIndicator color={foreground} />
       ) : (
@@ -75,9 +84,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: spacing(2),
+    overflow: 'hidden',
   },
   primary: {
     backgroundColor: colors.accent,
+    ...shadows.glow,
   },
   secondary: {
     backgroundColor: colors.surface,

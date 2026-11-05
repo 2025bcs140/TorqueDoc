@@ -1,5 +1,16 @@
 export type VehicleType = 'car' | 'motorcycle';
 
+/**
+ * A signed-in TorqueDoc account. Password hashes and session hashes never leave
+ * the server; this is the only user shape returned by the API.
+ */
+export interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt: string;
+}
+
 export interface Vehicle {
   id: string;
   type: VehicleType;
@@ -69,7 +80,7 @@ export interface DiagnosisMatch {
   totalLinkedSymptoms: number;
 }
 
-export type DiagnosisSource = 'checklist' | 'free_text' | 'media';
+export type DiagnosisSource = 'checklist' | 'free_text' | 'media' | 'audio';
 
 export interface DiagnosisRecord {
   id: string;

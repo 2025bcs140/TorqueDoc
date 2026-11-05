@@ -2,24 +2,33 @@
   "expo": {
     "name": "TorqueDoc",
     "slug": "torquedoc",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#15181C",
+    "backgroundColor": "#080D13",
     "scheme": "torquedoc",
     "splash": {
-      "backgroundColor": "#15181C"
+      "backgroundColor": "#080D13"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
       [
         "expo-image-picker",
         {
           "photosPermission": "TorqueDoc can attach existing photos of a vehicle problem to help with diagnosis.",
           "cameraPermission": "TorqueDoc uses your camera to capture photos or short videos of a vehicle problem so it can help identify the issue.",
-          "microphonePermission": "TorqueDoc can record short videos of a vehicle problem. Audio is not analyzed."
+          "microphonePermission": "TorqueDoc uses your microphone to record short vehicle sounds for AI-assisted diagnosis."
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "TorqueDoc uses your microphone to record short vehicle sounds for AI-assisted diagnosis. Recordings are analyzed and not stored afterward."
+        }
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": false,
@@ -27,13 +36,18 @@
       "infoPlist": {
         "NSCameraUsageDescription": "TorqueDoc uses your camera to capture photos or short videos of a vehicle problem so it can help identify the issue.",
         "NSPhotoLibraryUsageDescription": "TorqueDoc can attach existing photos of a vehicle problem to help with diagnosis.",
-        "NSMicrophoneUsageDescription": "TorqueDoc can record short videos of a vehicle problem. Audio is not analyzed."
+        "NSMicrophoneUsageDescription": "TorqueDoc uses your microphone to record short vehicle sounds for AI-assisted diagnosis. Recordings are analyzed and not stored afterward."
       }
     },
     "android": {
       "package": "com.torquedoc.app",
-      "versionCode": 2,
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "RECORD_AUDIO"]
+      "versionCode": 3,
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "RECORD_AUDIO"
+      ]
     }
   }
 }

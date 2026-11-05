@@ -89,24 +89,24 @@ function parsePatchBody(body: unknown): VehiclePatch {
   return patch;
 }
 
-router.get('/', (_req, res) => {
-  res.json({ vehicles: listVehicles() });
+router.get('/', (req, res) => {
+  res.json({ vehicles: listVehicles(req.user!.id) });
 });
 
 router.post('/', (req, res) => {
   const input = parseCreateBody(req.body);
-  const vehicle = createVehicle(input);
+  const vehicle = createVehicle(input, req.user!.id);
   res.status(201).json({ vehicle });
 });
 
 router.get('/:id', (req, res) => {
-  const vehicle = getVehicleById(req.params.id);
+  const vehicle = getVehicleById(req.params.id, req.user!.id);
   if (!vehicle) throw notFound('Vehicle not found');
   res.json({ vehicle });
 });
 
 router.patch('/:id', (req, res) => {
-  const existing = getVehicleById(req.params.id);
+  const existing = getVehicleById(req.params.id, req.user!.id);
   if (!existing) throw notFound('Vehicle not found');
 
   const patch = parsePatchBody(req.body);
@@ -130,23 +130,23 @@ router.patch('/:id', (req, res) => {
     throw badRequest(`mileage must be between 0 and ${MAX_MILEAGE}`);
   }
 
-  const vehicle = updateVehicle(req.params.id, patch);
+  const vehicle = updateVehicle(req.params.id, patch, req.user!.id);
   if (!vehicle) throw notFound('Vehicle not found');
   res.json({ vehicle });
 });
 
 router.delete('/:id', (req, res) => {
-  const deleted = deleteVehicle(req.params.id);
+  const deleted = deleteVehicle(req.params.id, req.user!.id);
   if (!deleted) throw notFound('Vehicle not found');
   res.status(204).end();
 });
 
 router.get('/:id/history', (req, res) => {
-  const vehicle = getVehicleById(req.params.id);
+  const vehicle = getVehicleById(req.params.id, req.user!.id);
   if (!vehicle) throw notFound('Vehicle not found');
 
   const limit = parseLimit(req.query.limit);
-  res.json({ history: getDiagnosisHistoryForVehicle(vehicle.id, limit) });
+  res.json({ history: getDiagnosisHistoryForVehicle(vehicle.id, req.user!.id, limit) });
 });
 
 export default router;

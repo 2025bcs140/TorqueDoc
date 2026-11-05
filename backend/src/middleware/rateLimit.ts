@@ -58,3 +58,4 @@ function createRateLimiter(max: number) {
 
 export const apiRateLimiter = createRateLimiter(config.rateLimitPerMinute);
 export const aiRateLimiter = createRateLimiter(config.aiRateLimitPerMinute);
+export const authRateLimiter = createRateLimiter(config.authRateLimitPerMinute);

@@ -2,54 +2,90 @@ import { Platform } from 'react-native';
 import { DiagnosisSource, RepairGuide, Severity, SymptomCategory } from '../types';
 
 // Design tokens for TorqueDoc.
-// Palette is a "diagnostic workshop" direction: graphite surfaces (a garage bay
-// at night), steel blue for structure/trust, and a diagnostic amber for
-// anything that needs attention — echoing a dashboard warning light rather
-// than a generic app accent color.
+// A midnight garage bay: deep blue-black surfaces, electric cyan structure,
+// and a warm diagnostic amber that behaves like a dashboard warning light.
+// Gradients are kept in one place so the web and native builds stay in sync.
 
 export const colors = {
-  background: '#15181C',
-  surface: '#1F2328',
-  surfaceRaised: '#282D33',
-  border: '#363C43',
+  background: '#080D13',
+  surface: '#111923',
+  surfaceRaised: '#182433',
+  surfaceSoft: '#0D141D',
+  border: '#25364A',
 
-  textPrimary: '#EDEFF1',
-  textSecondary: '#9AA4AC',
-  textMuted: '#6B7480',
+  textPrimary: '#F4F8FC',
+  textSecondary: '#A5B7C9',
+  textMuted: '#71869B',
 
-  primary: '#2E5C99',
-  primaryLight: '#4778BE',
+  primary: '#2563EB',
+  primaryLight: '#38BDF8',
+  cyan: '#22D3EE',
 
-  accent: '#F2A93B', // "check engine" amber — used for the diagnosis / prescription signature
-  success: '#4E9B6E',
-  danger: '#D6534A',
+  accent: '#FFB020', // "check engine" amber — the diagnosis signature
+  accentDeep: '#E07A00',
+  accentSoft: '#3A2A10',
+  success: '#34D399',
+  danger: '#FB7185',
 
-  severityLow: '#4E9B6E',
-  severityMedium: '#F2A93B',
-  severityHigh: '#E07B39',
-  severityUrgent: '#D6534A',
+  severityLow: '#34D399',
+  severityMedium: '#FFB020',
+  severityHigh: '#FB923C',
+  severityUrgent: '#FB7185',
+} as const;
+
+export const gradients = {
+  app: ['#080D13', '#0B1520', '#0F1117'] as const,
+  hero: ['#143050', '#0D1C2C', '#21170B'] as const,
+  accent: ['#FFD166', '#FFB020', '#E07A00'] as const,
+  primary: ['#2563EB', '#0EA5E9'] as const,
+  card: ['#172434', '#111923'] as const,
+  icon: ['#263A52', '#162433'] as const,
+} as const;
+
+export const shadows = {
+  card: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  glow: {
+    shadowColor: '#FFB020',
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
 } as const;
 
 export const spacing = (multiplier: number) => multiplier * 4;
 
 export const radii = {
-  sm: 6,
-  md: 12,
-  lg: 20,
+  sm: 8,
+  md: 14,
+  lg: 22,
+  xl: 28,
   pill: 999,
 } as const;
 
-export const touchTarget = 44;
+export const touchTarget = 46;
 
 // Type scale. System fonts are used so the project runs with zero font-asset
-// setup; swap in Space Grotesk / Inter via expo-font if you want the full
-// workshop-brand treatment.
+// setup; the tighter display tracking and small uppercase eyebrows do most of
+// the visual work.
 export const typography = {
-  display: { fontSize: 28, fontWeight: '700' as const, letterSpacing: -0.3 },
-  heading: { fontSize: 20, fontWeight: '600' as const },
+  display: { fontSize: 31, fontWeight: '800' as const, letterSpacing: -0.9 },
+  heading: { fontSize: 22, fontWeight: '700' as const, letterSpacing: -0.3 },
   subheading: { fontSize: 16, fontWeight: '600' as const },
-  body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 21 },
+  body: { fontSize: 15, fontWeight: '400' as const, lineHeight: 22 },
   caption: { fontSize: 12, fontWeight: '400' as const },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase' as const,
+  },
   mono: {
     fontSize: 13,
     fontFamily: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
@@ -101,6 +137,8 @@ export const sourceLabel = (source: DiagnosisSource): string => {
       return 'Described in words';
     case 'media':
       return 'Photo / video';
+    case 'audio':
+      return 'Recorded sound';
   }
 };
 

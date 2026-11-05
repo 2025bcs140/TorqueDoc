@@ -13,6 +13,7 @@ import { DiagnoseHomeScreen } from '../screens/DiagnoseHomeScreen';
 import { SymptomChecklistScreen } from '../screens/SymptomChecklistScreen';
 import { FreeTextSymptomScreen } from '../screens/FreeTextSymptomScreen';
 import { CameraCaptureScreen } from '../screens/CameraCaptureScreen';
+import { AudioCaptureScreen } from '../screens/AudioCaptureScreen';
 import { DiagnosisResultScreen } from '../screens/DiagnosisResultScreen';
 import { RepairGuideDetailScreen } from '../screens/RepairGuideDetailScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
@@ -58,6 +59,7 @@ export function AppNavigator() {
       <Stack.Screen name="SymptomChecklist" component={SymptomChecklistScreen} options={{ title: 'Symptom checklist' }} />
       <Stack.Screen name="FreeTextSymptom" component={FreeTextSymptomScreen} options={{ title: 'Describe the problem' }} />
       <Stack.Screen name="CameraCapture" component={CameraCaptureScreen} options={{ title: 'Capture' }} />
+      <Stack.Screen name="AudioCapture" component={AudioCaptureScreen} options={{ title: 'Record a sound' }} />
       <Stack.Screen name="DiagnosisResult" component={DiagnosisResultScreen} options={{ title: 'Diagnosis' }} />
       <Stack.Screen name="RepairGuideDetail" component={RepairGuideDetailScreen} options={{ title: 'Repair guide' }} />
       <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Diagnosis history' }} />

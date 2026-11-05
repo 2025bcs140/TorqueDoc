@@ -95,7 +95,7 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
       <ActionRow
         icon="pulse-outline"
         label="Diagnose a problem"
-        sublabel="Checklist, describe it, or capture a photo/video"
+        sublabel="Checklist, words, photo/video or a recorded sound"
         onPress={() => navigation.navigate('DiagnoseHome', { vehicleId: vehicle.id })}
       />
       <ActionRow

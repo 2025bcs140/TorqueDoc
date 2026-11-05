@@ -7,7 +7,9 @@ import { db } from './db';
 import { accessTokenGuard } from './middleware/accessToken';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { aiRateLimiter, apiRateLimiter } from './middleware/rateLimit';
+import { attachUser, requireUser } from './middleware/userAuth';
 import { requestLogger } from './middleware/requestLogger';
+import authRouter from './routes/auth';
 import vehiclesRouter from './routes/vehicles';
 import catalogRouter from './routes/catalog';
 import diagnoseRouter from './routes/diagnose';
@@ -70,12 +72,13 @@ export function createApp(): express.Express {
 
     res.json({
       name: 'TorqueDoc API',
-      version: '0.2.0',
+      version: '0.3.0',
       docs: 'See docs/API.md in the repository',
       webApp: 'GET /app',
       dashboard: 'GET /dashboard',
       endpoints: {
         health: 'GET /health',
+        auth: 'POST /auth/register, POST /auth/login, GET /auth/me, POST /auth/logout',
         vehicles: 'GET|POST /vehicles, GET|PATCH|DELETE /vehicles/:id',
         history: 'GET /vehicles/:id/history?limit=100',
         symptoms: 'GET /symptoms?vehicleType=car|motorcycle',
@@ -84,16 +87,16 @@ export function createApp(): express.Express {
         diagnose: 'POST /diagnose',
         diagnosis: 'GET /diagnoses/:id',
         interpretSymptoms: 'POST /v1/symptoms/interpret',
-        analyzeMedia: 'POST /v1/media/analyze',
+        analyzeMedia: 'POST /v1/media/analyze (photo, video or audio)',
       },
     });
   });
 
   /**
-   * Zero-build owner dashboard for browsers. It is served before the access
-   * guard because a browser cannot attach X-TorqueDoc-Key to the initial HTML
-   * request; the page itself embeds the shared key for its same-origin API
-   * calls. Like the APK, this is a demo/owner tool, not user authentication.
+   * Zero-build dashboard for browsers. It is served before the access guard
+   * because a browser cannot attach X-TorqueDoc-Key to the initial HTML request;
+   * the page embeds the shared key for same-origin API calls and signs in with
+   * the same email/password account as the app.
    */
   app.get(['/dashboard', '/dashboard/'], (_req, res) => {
     res.type('html').send(renderDashboard(config.apiAccessToken));
@@ -134,16 +137,24 @@ export function createApp(): express.Express {
         configured: config.aiConfigured,
         provider: config.aiProvider,
         model: config.aiModel,
+        audioModel: config.aiProvider === 'cloudflare' ? config.cloudflareAudioModel : null,
       },
+      auth: 'required',
       videoAnalysis: ffmpegAvailable ? 'available' : 'unavailable',
+      audioAnalysis:
+        config.aiProvider === 'cloudflare' && ffmpegAvailable ? 'available' : 'unavailable',
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
 
   // `/` and `/health` stay public so hosting health checks work without a
-  // secret. Everything below this line is gated when API_ACCESS_TOKEN is set.
+  // secret. Auth endpoints require the shared deployment key but no session;
+  // every route below `requireUser` needs a signed-in account.
+  app.use(attachUser);
   app.use(accessTokenGuard);
   app.use(apiRateLimiter);
+  app.use('/auth', authRouter);
+  app.use(requireUser);
   app.use('/v1', aiRateLimiter);
 
   app.use('/vehicles', vehiclesRouter);

@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 export class FfmpegNotFoundError extends Error {
   constructor() {
     super(
-      "ffmpeg/ffprobe were not found on this system's PATH. Install ffmpeg (for example `brew install ffmpeg`, `apt install ffmpeg`, or `winget install Gyan.FFmpeg`) to enable video analysis. Photo analysis does not need it."
+      "ffmpeg/ffprobe were not found on this system's PATH. Install ffmpeg (for example `brew install ffmpeg`, `apt install ffmpeg`, or `winget install Gyan.FFmpeg`) to enable video and sound analysis. Photo and checklist diagnosis do not need it."
     );
     this.name = 'FfmpegNotFoundError';
   }

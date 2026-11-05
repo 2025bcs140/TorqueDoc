@@ -68,7 +68,7 @@ export interface DiagnosisMatch {
 }
 
 /** How the person entered symptoms for a given diagnosis run. */
-export type DiagnosisSource = 'checklist' | 'free_text' | 'media';
+export type DiagnosisSource = 'checklist' | 'free_text' | 'media' | 'audio';
 
 export interface DiagnosisRecord {
   id: string;

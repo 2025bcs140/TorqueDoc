@@ -6,8 +6,9 @@
  * free client for the same public API: garage CRUD, the deterministic symptom
  * checklist, ranked causes, repair guides, and saved history.
  *
- * It intentionally reuses the deployment's shared API key. Like the APK, this
- * page is a demo/owner tool, not a multi-user authenticated product.
+ * It signs in with the same email/password accounts as the app and keeps the
+ * account session in localStorage. The shared API key, when configured, is
+ * injected by the server as an abuse gate; it is not account authentication.
  */
 export function renderDashboard(apiAccessToken: string): string {
   const token = JSON.stringify(apiAccessToken).replace(/</g, '\\u003c');
@@ -17,7 +18,7 @@ export function renderDashboard(apiAccessToken: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#15181c">
+<meta name="theme-color" content="#080d13">
 <title>TorqueDoc — Garage dashboard</title>
 <style>
   :root {
@@ -195,6 +196,31 @@ export function renderDashboard(apiAccessToken: string): string {
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.error { border-color: #7f3b3b; background: #3a2020; }
   .loading { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  [hidden] { display: none !important; }
+  .auth-gate {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px;
+    background:
+      radial-gradient(720px 520px at 85% 10%, rgba(255, 138, 61, 0.18), transparent 60%),
+      radial-gradient(620px 500px at 0% 100%, rgba(79, 209, 161, 0.1), transparent 60%),
+      rgba(9, 12, 15, 0.92);
+    backdrop-filter: blur(12px);
+  }
+  .auth-card {
+    width: min(430px, 100%); border: 1px solid #3a4652; border-radius: 22px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.055), transparent 42%), #151b21;
+    padding: 30px; box-shadow: 0 30px 100px rgba(0,0,0,0.6);
+  }
+  .auth-mark {
+    display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px;
+    background: linear-gradient(145deg, #ffb35c, #ff7a2f); color: #1a110b;
+    font-weight: 900; letter-spacing: -1px; margin-bottom: 18px;
+  }
+  .auth-card h2 { margin: 0; font-size: 28px; letter-spacing: -0.8px; }
+  .auth-card p { color: var(--muted); line-height: 1.55; font-size: 13px; margin: 9px 0 20px; }
+  .auth-card form { display: grid; gap: 12px; }
+  .auth-card .field label { color: #b8c4ce; }
+  .auth-card .error { min-height: 17px; color: #ff9b9b; font-size: 12px; }
+  .auth-foot { color: #7c8894; font-size: 11px; line-height: 1.5; margin-top: 16px; }
   footer { max-width: 1440px; margin: 0 auto; padding: 0 28px 30px; color: #707c88; font-size: 11px; line-height: 1.6; }
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; padding: 16px; }
@@ -222,6 +248,7 @@ export function renderDashboard(apiAccessToken: string): string {
     <span class="pill" id="aiPill">AI checking…</span>
     <a class="pill" href="/app" target="_blank" rel="noreferrer">Open full app ↗</a>
     <a class="pill" href="https://github.com/2025bcs140/TorqueDoc" target="_blank" rel="noreferrer">GitHub ↗</a>
+    <button class="btn small ghost" id="signOutBtn" type="button" hidden>Sign out</button>
   </div>
 </header>
 
@@ -323,9 +350,30 @@ export function renderDashboard(apiAccessToken: string): string {
 </main>
 
 <footer>
-  TorqueDoc demo dashboard. The mobile app is the primary interface. Cars and motorcycles only.
+  TorqueDoc account dashboard. The mobile app is the primary interface. Cars and motorcycles only.
   Free-hosted data can reset when the API service restarts.
 </footer>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-mark">TD</div>
+    <h2>Sign in to your garage</h2>
+    <p>The dashboard uses the same account and private garage as the TorqueDoc app.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="At least 8 characters">
+      </div>
+      <div class="error" id="loginError"></div>
+      <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
+    </form>
+    <div class="auth-foot">New here? Create an account in the <a href="/app" style="color:var(--accent)">TorqueDoc app</a>, then come back.</div>
+  </div>
+</div>
 
 <div id="modalRoot"></div>
 <div class="toast" id="toast" role="status"></div>
@@ -334,6 +382,8 @@ export function renderDashboard(apiAccessToken: string): string {
 (function () {
   "use strict";
   var API_TOKEN = ${token};
+  var SESSION_KEY = "torquedoc.dashboard.session";
+  var sessionToken = localStorage.getItem(SESSION_KEY) || "";
   var state = {
     vehicles: [],
     selectedId: null,
@@ -372,6 +422,7 @@ export function renderDashboard(apiAccessToken: string): string {
     options = options || {};
     var headers = Object.assign({ "Accept": "application/json" }, options.headers || {});
     if (API_TOKEN) headers["X-TorqueDoc-Key"] = API_TOKEN;
+    if (sessionToken && !options.noSession) headers["Authorization"] = "Bearer " + sessionToken;
     if (options.body) headers["Content-Type"] = "application/json";
     var response = await fetch(path, {
       method: options.method || "GET",
@@ -383,11 +434,69 @@ export function renderDashboard(apiAccessToken: string): string {
       var text = await response.text();
       try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
     }
+    if (response.status === 401 && sessionToken && !options.noSession) {
+      sessionToken = "";
+      localStorage.removeItem(SESSION_KEY);
+      showLoginGate();
+    }
     if (!response.ok) {
       var message = data && data.error ? data.error : "Request failed (" + response.status + ")";
       throw new Error(message);
     }
     return data;
+  }
+
+  function showLoginGate() {
+    $("authGate").hidden = false;
+    $("signOutBtn").hidden = true;
+  }
+
+  function hideLoginGate() {
+    $("authGate").hidden = true;
+    $("signOutBtn").hidden = false;
+  }
+
+  async function signIn(event) {
+    event.preventDefault();
+    var button = $("loginBtn");
+    var errorBox = $("loginError");
+    errorBox.textContent = "";
+    button.disabled = true;
+    button.textContent = "Signing in…";
+    try {
+      var data = await api("/auth/login", {
+        method: "POST",
+        noSession: true,
+        body: { email: $("loginEmail").value.trim(), password: $("loginPassword").value }
+      });
+      sessionToken = data.token;
+      localStorage.setItem(SESSION_KEY, sessionToken);
+      $("loginPassword").value = "";
+      hideLoginGate();
+      await loadVehicles();
+    } catch (error) {
+      errorBox.textContent = error.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Sign in";
+    }
+  }
+
+  function signOut() {
+    var token = sessionToken;
+    sessionToken = "";
+    localStorage.removeItem(SESSION_KEY);
+    showLoginGate();
+    state.vehicles = [];
+    state.selectedId = null;
+    renderVehicles();
+    renderWorkspace();
+    if (token) {
+      fetch("/auth/logout", {
+        method: "POST",
+        headers: { "X-TorqueDoc-Key": API_TOKEN, "Authorization": "Bearer " + token }
+      }).catch(function () {});
+    }
   }
 
   function selectedVehicle() {
@@ -734,10 +843,17 @@ export function renderDashboard(apiAccessToken: string): string {
   $("deleteVehicleBtn").addEventListener("click", deleteVehicle);
   $("diagnoseTab").addEventListener("click", function () { switchTab("diagnose"); });
   $("historyTab").addEventListener("click", function () { switchTab("history"); });
+  $("loginForm").addEventListener("submit", signIn);
+  $("signOutBtn").addEventListener("click", signOut);
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeModal(); });
 
   loadHealth();
-  loadVehicles();
+  if (sessionToken) {
+    hideLoginGate();
+    loadVehicles();
+  } else {
+    showLoginGate();
+  }
 })();
 </script>
 </body>

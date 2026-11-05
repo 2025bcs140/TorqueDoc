@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { AI_TIMEOUT_MS, apiFetch } from './apiClient';
 import { VehicleType } from '../types';
 
-export type MediaKind = 'photo' | 'video';
+export type MediaKind = 'photo' | 'video' | 'audio';
 
 export interface MediaAnalysisResult {
   matchedSymptomIds: string[];
@@ -20,20 +20,35 @@ export interface MediaAsset {
   file?: File;
 }
 
+const FALLBACKS: Record<MediaKind, { name: string; type: string }> = {
+  photo: { name: 'capture.jpg', type: 'image/jpeg' },
+  video: { name: 'capture.mp4', type: 'video/mp4' },
+  audio: { name: 'recording.m4a', type: 'audio/m4a' },
+};
+
 /**
- * Uploads a captured photo or short video for vision analysis. Video frame
- * extraction (ffmpeg) happens server-side, so the app simply uploads the file.
+ * Uploads a captured photo, short video, or sound clip for analysis. Video
+ * frame extraction and audio transcoding (ffmpeg) happen server-side, so the
+ * app simply uploads the original file.
+ *
+ * `context` is only used for audio: a short note such as "when braking" that
+ * helps the audio model distinguish similar sounds.
  */
 export async function analyzeVehicleMedia(
   vehicleType: VehicleType,
-  asset: MediaAsset
+  asset: MediaAsset,
+  options?: { context?: string }
 ): Promise<MediaAnalysisResult> {
   const form = new FormData();
   form.append('vehicleType', vehicleType);
   form.append('kind', asset.kind);
+  if (asset.kind === 'audio' && options?.context) {
+    form.append('context', options.context);
+  }
 
-  const fallbackName = asset.kind === 'photo' ? 'capture.jpg' : 'capture.mp4';
-  const fallbackType = asset.kind === 'photo' ? 'image/jpeg' : 'video/mp4';
+  const fallback = FALLBACKS[asset.kind];
+  const fallbackName = fallback.name;
+  const fallbackType = fallback.type;
 
   if (Platform.OS === 'web') {
     // Browsers need a real File/Blob. React Native's { uri, name, type }

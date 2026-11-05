@@ -69,6 +69,10 @@ const cloudflareModel = readString(
   '@cf/mistralai/mistral-small-3.1-24b-instruct'
 );
 const cloudflareVisionModel = readString('CLOUDFLARE_VISION_MODEL', cloudflareModel);
+const cloudflareAudioModel = readString(
+  'CLOUDFLARE_AUDIO_MODEL',
+  '@cf/cloudflare/clef-omni'
+);
 const anthropicModel = readString('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
 
 /** Cloudflare is preferred when both credentials are present. */
@@ -107,6 +111,7 @@ export const config = {
   ),
   cloudflareModel,
   cloudflareVisionModel,
+  cloudflareAudioModel,
 
   aiProvider,
   aiModel:
@@ -126,6 +131,7 @@ export const config = {
   trustProxy: readString('TRUST_PROXY', 'false') === 'true',
   rateLimitPerMinute: readInt('RATE_LIMIT_PER_MINUTE', 240, 10, 10_000),
   aiRateLimitPerMinute: readInt('AI_RATE_LIMIT_PER_MINUTE', 10, 1, 1_000),
+  authRateLimitPerMinute: readInt('AUTH_RATE_LIMIT_PER_MINUTE', 12, 3, 100),
 } as const;
 
 export const MAX_UPLOAD_BYTES = config.maxUploadMb * 1024 * 1024;

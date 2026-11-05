@@ -2,13 +2,15 @@ import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { MAX_UPLOAD_BYTES } from '../config';
 import { getSymptomsForVehicleType } from '../db';
-import { badRequest, isPlainObject, requireVehicleType } from '../http';
+import { badRequest, isPlainObject, optionalString, requireVehicleType } from '../http';
 import {
   AiImageMediaType,
   AiNotConfiguredError,
   AiRequestError,
   askAiForJson,
 } from '../services/aiClient';
+import { analyzeVehicleAudio } from '../services/audioAnalysis';
+import { AudioUnreadableError, extractAudioClipBase64 } from '../services/audioClip';
 import { extractVideoFramesBase64, FfmpegNotFoundError } from '../services/videoFrames';
 
 const router = Router();
@@ -18,11 +20,13 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
 });
 
-const VALID_KINDS = ['photo', 'video'] as const;
+const VALID_KINDS = ['photo', 'video', 'audio'] as const;
 type MediaKind = (typeof VALID_KINDS)[number];
 
 /** The app and the vision-model upload path both cap each photo at 5 MB. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+/** Audio is transcoded and trimmed server-side; this is only an abuse limit. */
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 const PHOTO_MIME_TYPES: Record<string, AiImageMediaType> = {
   'image/jpeg': 'image/jpeg',
@@ -40,6 +44,33 @@ const VIDEO_MIME_TYPES = new Set([
   'video/3gpp',
   'video/x-matroska',
   'application/octet-stream', // some React Native uploads don't set a precise type
+]);
+
+/** Fixed hints only: user text must not become free-form model instructions. */
+const AUDIO_CONTEXTS = new Set([
+  'At idle',
+  'When revving',
+  'When braking',
+  'When turning',
+  'When starting',
+  'Not sure',
+]);
+
+const AUDIO_MIME_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/webm',
+  'audio/ogg',
+  'audio/opus',
+  'audio/3gpp',
+  'audio/amr',
+  'application/octet-stream', // some Android recordings report a generic type
 ]);
 
 interface MediaAnalysisResult {
@@ -80,6 +111,24 @@ function validateFileForKind(kind: MediaKind, file: Express.Multer.File): void {
     return;
   }
 
+  if (kind === 'audio') {
+    if (file.mimetype.startsWith('image/')) {
+      throw badRequest('kind is "audio" but the uploaded file is an image');
+    }
+    if (file.mimetype.startsWith('video/')) {
+      throw badRequest(
+        'kind is "audio" but the uploaded file is a video. Upload an audio recording instead.'
+      );
+    }
+    if (!AUDIO_MIME_TYPES.has(file.mimetype)) {
+      throw badRequest(
+        `Unsupported audio type "${file.mimetype}". Use MP3, M4A, WAV, WebM, OGG or AAC.`,
+        { supported: [...AUDIO_MIME_TYPES] }
+      );
+    }
+    return;
+  }
+
   if (file.mimetype.startsWith('image/')) {
     throw badRequest('kind is "video" but the uploaded file is an image');
   }
@@ -107,6 +156,9 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
   if (!req.file) {
     throw badRequest('No file uploaded (expected multipart field "file")');
   }
+  // Browsers may send `audio/webm;codecs=opus` or similar parameters. Compare
+  // and report the base media type; ffmpeg still probes the actual container.
+  req.file.mimetype = req.file.mimetype.split(';')[0].trim().toLowerCase();
   validateFileForKind(kind, req.file);
 
   if (kind === 'photo' && req.file.size > MAX_PHOTO_BYTES) {
@@ -115,6 +167,58 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
         'That photo is larger than 5 MB, which is the vision API limit. Choose a smaller image or lower the camera resolution.',
       code: 'PHOTO_TOO_LARGE',
     });
+  }
+
+  if (kind === 'audio') {
+    if (req.file.size > MAX_AUDIO_BYTES) {
+      return res.status(413).json({
+        error: `That audio file is larger than ${MAX_AUDIO_BYTES / (1024 * 1024)} MB. Record a shorter clip or choose a smaller file.`,
+        code: 'AUDIO_TOO_LARGE',
+      });
+    }
+
+    const requestedContext = optionalString(req.body.context, 'context', { max: 80 }) ?? '';
+    const whenHeard = AUDIO_CONTEXTS.has(requestedContext) ? requestedContext : 'Not sure';
+    let audioBase64: string;
+    try {
+      audioBase64 = await extractAudioClipBase64(req.file.buffer);
+    } catch (error) {
+      if (error instanceof FfmpegNotFoundError) {
+        return res.status(503).json({ error: error.message, code: 'FFMPEG_NOT_FOUND' });
+      }
+      if (error instanceof AudioUnreadableError) {
+        return res.status(422).json({ error: error.message, code: 'AUDIO_UNREADABLE' });
+      }
+      return res.status(422).json({
+        error:
+          'Could not read that audio clip. Try a 10–20 second WAV, MP3, M4A or WebM recording.',
+        code: 'AUDIO_UNREADABLE',
+      });
+    }
+
+    const relevantSymptoms = getSymptomsForVehicleType(vehicleType);
+    try {
+      const result = await analyzeVehicleAudio(
+        vehicleType,
+        whenHeard,
+        audioBase64,
+        new Set(relevantSymptoms.map((symptom) => symptom.id))
+      );
+      res.json(result);
+    } catch (error) {
+      if (error instanceof AiNotConfiguredError) {
+        return res.status(503).json({ error: error.message, code: 'AI_NOT_CONFIGURED' });
+      }
+      console.error('Audio analysis failed:', error);
+      const message =
+        error instanceof AiRequestError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'AI audio analysis failed';
+      res.status(502).json({ error: message, code: 'AI_REQUEST_FAILED' });
+    }
+    return;
   }
 
   let base64Frames: { data: string; mediaType: AiImageMediaType }[];
@@ -152,7 +256,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
     }
 
     base64Frames = frames.map((data) => ({ data, mediaType: 'image/jpeg' as const }));
-    frameNote = `These ${frames.length} images are frames sampled across a few seconds of video — look for visible change across them (e.g. smoke, a wobbling part, fluid dripping). Audio was not captured, so don't guess at sounds.`;
+    frameNote = `These ${frames.length} images are frames sampled across a few seconds of video — look for visible change across them (e.g. smoke, a wobbling part, fluid dripping). This path does not analyze the video soundtrack; use TorqueDoc's sound mode for audio.`;
   }
 
   const relevantSymptoms = getSymptomsForVehicleType(vehicleType).map((symptom) => ({

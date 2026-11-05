@@ -174,7 +174,7 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
       <Text style={styles.hint}>
         A close-up photo of a leak, warning light, or worn part works best. A short video helps for
         anything that changes over a few seconds, like smoke or a wobbling part. We sample a few
-        frames server-side; audio isn’t analyzed.
+        frames server-side; this screen looks at the picture, not the soundtrack.
       </Text>
 
       {asset ? (
@@ -186,7 +186,7 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
             <Text style={styles.videoTitle}>Video selected</Text>
             <Text style={styles.videoHint}>
               {asset.duration ? `${Math.round(asset.duration / 1000)}s · ` : ''}
-              A few frames will be sampled by the backend.
+              A few frames will be sampled by the backend. Use Sound mode to analyze the noise.
             </Text>
           </View>
         )
@@ -214,6 +214,24 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
         />
       </View>
 
+      <Pressable
+        style={({ pressed }) => [styles.soundCallout, pressed && styles.captureButtonPressed]}
+        onPress={() => navigation.navigate('AudioCapture', { vehicleId })}
+        accessibilityRole="button"
+        accessibilityLabel="Record a sound instead"
+      >
+        <View style={styles.soundIcon}>
+          <Ionicons name="mic-outline" size={21} color={colors.cyan} />
+        </View>
+        <View style={styles.soundText}>
+          <Text style={styles.soundTitle}>Hear something instead?</Text>
+          <Text style={styles.soundHint}>
+            Record an engine, brake, chain or exhaust noise for sound analysis.
+          </Text>
+        </View>
+        <Ionicons name="arrow-forward" size={18} color={colors.cyan} />
+      </Pressable>
+
       {error && <ErrorBanner message={error} />}
 
       <PrimaryButton
@@ -228,9 +246,9 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
       <View style={styles.privacyNote}>
         <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
         <Text style={styles.privacyText}>
-          The file is uploaded to your TorqueDoc backend, which sends it to Cloudflare Workers AI
-          for analysis. Cloudflare doesn’t train on or retain it, and it isn’t stored on the server
-          after the request finishes.
+          The visual file is uploaded to your TorqueDoc backend, which sends it to Cloudflare
+          Workers AI for analysis. Cloudflare doesn’t train on or retain it, and it isn’t stored
+          on the server after the request finishes.
         </Text>
       </View>
 
@@ -347,6 +365,39 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textPrimary,
     fontWeight: '600',
+  },
+  soundCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(3),
+    backgroundColor: 'rgba(34, 211, 238, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.22)',
+    borderRadius: radii.md,
+    padding: spacing(3),
+    marginBottom: spacing(3),
+  },
+  soundIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(34, 211, 238, 0.12)',
+  },
+  soundText: {
+    flex: 1,
+  },
+  soundTitle: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
+  soundHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
   },
   analyzeButton: {
     marginTop: spacing(2),

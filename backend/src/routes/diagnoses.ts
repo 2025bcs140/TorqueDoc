@@ -10,7 +10,7 @@ const router = Router();
  * diagnosis or relying on navigation params.
  */
 router.get('/:id', (req, res) => {
-  const record = getDiagnosisById(req.params.id);
+  const record = getDiagnosisById(req.params.id, req.user!.id);
   if (!record) throw notFound('Diagnosis not found');
   res.json({ diagnosis: record });
 });

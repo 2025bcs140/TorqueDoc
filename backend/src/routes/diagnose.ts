@@ -11,7 +11,7 @@ import { DiagnosisSource, VehicleType } from '../types';
 
 const router = Router();
 
-const VALID_SOURCES: DiagnosisSource[] = ['checklist', 'free_text', 'media'];
+const VALID_SOURCES: DiagnosisSource[] = ['checklist', 'free_text', 'media', 'audio'];
 const MAX_SYMPTOMS = 60;
 
 function parseSymptomIds(value: unknown): string[] {
@@ -67,7 +67,7 @@ router.post('/diagnose', (req, res) => {
 
   let diagnosedVehicleId: string | undefined;
   if (typeof vehicleId === 'string') {
-    const vehicle = getVehicleById(vehicleId);
+    const vehicle = getVehicleById(vehicleId, req.user!.id);
     if (!vehicle) throw notFound('vehicleId provided but no matching vehicle was found');
     if (vehicle.type !== vehicleType) {
       throw badRequest(

@@ -12,12 +12,18 @@ function safeEqual(provided: string, expected: string): boolean {
 /**
  * Optional shared-key gate for public deployments.
  *
- * The mobile client sends the key in `X-TorqueDoc-Key`. A Bearer token is also
- * accepted so curl/Postman are easy to use. This is deliberately not a user
- * authentication system: it protects an internet-facing demo from casual
- * abuse, while the app remains single-tenant. See docs/ARCHITECTURE.md.
+ * The mobile client sends the key in `X-TorqueDoc-Key`. A valid user session
+ * (attached earlier by attachUser) is also sufficient, so the app can use the
+ * standard `Authorization: Bearer <session>` header. A shared Bearer token is
+ * still accepted for curl/Postman. Per-user authentication is enforced by
+ * requireUser on all garage and diagnosis routes.
  */
 export function accessTokenGuard(req: Request, res: Response, next: NextFunction): void {
+  if (req.user) {
+    next();
+    return;
+  }
+
   if (!config.apiAccessToken) {
     next();
     return;
