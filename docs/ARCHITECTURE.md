@@ -171,12 +171,12 @@ a single instance.
 |---|---|
 | `users` | `id`, unique case-insensitive `email`, `display_name`, scrypt `password_hash`, `created_at`. |
 | `sessions` | SHA-256 `token_hash`, `user_id`, `created_at`, `expires_at`, `last_seen_at`. Cascades on user delete. |
-| `vehicles` | Account-owned car/motorcycle. `user_id` is nullable only for legacy rows during migration. |
+| `vehicles` | Account-owned car/motorcycle. New databases require a non-null `user_id`; upgraded databases use a nullable column only long enough for startup cleanup. |
 | `symptoms` | Catalog symptom, category, applicable vehicle types, linked cause ids (JSON). |
 | `causes` | Catalog cause, severity, applicable types, repair guide id (JSON types). |
 | `repair_guides` | Tools, steps, category, difficulty, estimated minutes. |
 | `diagnosis_records` | Vehicle id, source, symptom ids, full match snapshot, timestamp. |
-| `meta` | Catalog version and migration markers. |
+| `meta` | Catalog version. |
 
 History stores the **match snapshot**, so catalog edits do not rewrite past
 results. Deleting a vehicle cascades to its diagnosis records.
@@ -188,9 +188,14 @@ Migrations are additive and run on startup:
 - New `users` and `sessions` tables are created if absent.
 - `vehicles.user_id` is added if an older database lacks it, and the index is
   created afterward.
-- On the first account created against an old single-tenant database, unowned
-  vehicles are claimed by that account. Later accounts start with two example
-  vehicles instead.
+- Startup cleanup deletes every vehicle that has no owner, plus vehicles whose
+  `created_at` predates their owner's account. The second rule removes rows
+  inherited from the old first-account migration. Their diagnosis records are
+  deleted in the same transaction.
+- No account ever claims unowned or pre-account vehicles. Every new account
+  starts with two example vehicles that belong only to it.
+- Every vehicle read, update, delete, diagnosis write and history query includes
+  the authenticated account id. A cross-account request returns `404`.
 - The catalog is replaced only when `CATALOG_VERSION` changes; diagnosis history
   keeps its snapshots.
 

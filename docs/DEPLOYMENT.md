@@ -87,9 +87,10 @@ Once the service is live:
 - The full app is at `https://torquedoc-api.onrender.com/app`. It uses the same
   account, private garage, checklist, diagnosis, history, sound and repair-guide
   flows as the phone app.
-- A lightweight account dashboard is at
+- A service-console dashboard is at
   `https://torquedoc-api.onrender.com/dashboard`. It signs in with the same
-  email/password account and hides the garage until authenticated.
+  email/password account, hides the garage until authenticated, and shows only
+  the signed-in account's vehicles and diagnosis history.
 - Opening `https://torquedoc-api.onrender.com/` in a browser redirects to
   `/app`. API clients that request JSON still receive the route index.
 

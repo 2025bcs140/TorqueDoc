@@ -317,6 +317,9 @@ devDependency so npm hoists one shared copy.
   the session token in AsyncStorage; it never stores the password.
 - Garage, diagnosis, history and AI routes require a signed-in account. Every
   vehicle query is scoped to the owning user, and cross-account IDs return 404.
+- Target accounts never inherit another person's garage. Startup cleanup removes
+  unowned or migration-inherited vehicles and their diagnosis records, and every
+  new account starts with two private example vehicles.
 - `API_ACCESS_TOKEN` is an additional abuse gate for public deployments, not a
   replacement for accounts. It is visible in the web runtime config, so do not
   treat it as a secret.

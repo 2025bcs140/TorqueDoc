@@ -65,7 +65,7 @@ const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS vehicles (
     id TEXT PRIMARY KEY,
-    user_id TEXT,
+    user_id TEXT NOT NULL,
     type TEXT NOT NULL,
     nickname TEXT,
     make TEXT NOT NULL,
@@ -126,6 +126,7 @@ const SCHEMA = `
 export function initDb(): void {
   db.exec(SCHEMA);
   migrateVehiclesForAccounts();
+  purgeLegacyVehicles();
   syncCatalog();
   cleanupExpiredSessions();
 
@@ -148,6 +149,58 @@ function migrateVehiclesForAccounts(): void {
     CREATE INDEX IF NOT EXISTS idx_vehicles_user_created
       ON vehicles (user_id, created_at DESC);
   `);
+}
+
+/**
+ * Removes rows that cannot belong to a real account:
+ *
+ *  - pre-account vehicles with no owner at all;
+ *  - vehicles from the old first-account migration whose timestamps are
+ *    earlier than the account itself.
+ *
+ * Neither group is safe to show to any user. Diagnosis snapshots are deleted
+ * with them, and the old one-time claim marker is removed so an ancient
+ * deployment cannot resurrect the behaviour.
+ */
+function purgeLegacyVehicles(): void {
+  const removed = withTransaction(() => {
+    const unowned = db
+      .prepare('SELECT id FROM vehicles WHERE user_id IS NULL')
+      .all() as unknown as Array<{ id: string }>;
+    const inherited = db
+      .prepare(
+        `SELECT v.id
+           FROM vehicles v
+           JOIN users u ON u.id = v.user_id
+          WHERE v.created_at < u.created_at`
+      )
+      .all() as unknown as Array<{ id: string }>;
+
+    const ids = Array.from(new Set([...unowned, ...inherited].map((row) => row.id)));
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(', ');
+      db.prepare(
+        `DELETE FROM diagnosis_records WHERE vehicle_id IN (${placeholders})`
+      ).run(...ids);
+      db.prepare(`DELETE FROM vehicles WHERE id IN (${placeholders})`).run(...ids);
+    }
+
+    // Older builds could leave diagnosis rows behind if a vehicle was deleted
+    // outside the normal API path.
+    db.exec(
+      'DELETE FROM diagnosis_records WHERE vehicle_id NOT IN (SELECT id FROM vehicles)'
+    );
+    db.prepare("DELETE FROM meta WHERE key = 'legacy_vehicles_claimed'").run();
+
+    return { unowned: unowned.length, inherited: inherited.length, total: ids.length };
+  });
+
+  if (removed.total > 0) {
+    console.log(
+      `Purged ${removed.total} unowned or inherited vehicle(s) and their diagnosis history ` +
+        `(${removed.unowned} unowned, ${removed.inherited} inherited).`
+    );
+  }
 }
 
 function withTransaction<T>(fn: () => T): T {
@@ -254,24 +307,6 @@ function seedExampleVehiclesForUser(userId: string): void {
   const now = new Date().toISOString();
   insert.run(randomUUID(), userId, 'car', 'The Daily', 'Toyota', 'Corolla', 2016, 78_500, now);
   insert.run(randomUUID(), userId, 'motorcycle', 'Weekend Bike', 'Honda', 'CB500F', 2020, 9_200, now);
-}
-
-/**
- * The first account created after upgrading an old single-tenant deployment
- * inherits the pre-account garage instead of silently losing it. The marker
- * makes this a one-time migration; later accounts get their own examples.
- */
-function claimLegacyVehicles(userId: string): void {
-  if (getMeta('legacy_vehicles_claimed') === '1') return;
-
-  const { count } = db
-    .prepare('SELECT COUNT(*) AS count FROM vehicles WHERE user_id IS NULL')
-    .get() as { count: number };
-  if (count > 0) {
-    db.prepare('UPDATE vehicles SET user_id = ? WHERE user_id IS NULL').run(userId);
-    console.log(`Assigned ${count} pre-account vehicle(s) to the first account.`);
-  }
-  setMeta('legacy_vehicles_claimed', '1');
 }
 
 // ---- row <-> domain mapping -------------------------------------------
@@ -465,7 +500,6 @@ export function createUser(input: {
        VALUES (?, ?, ?, ?, ?)`
     ).run(id, input.email.toLowerCase(), input.displayName, input.passwordHash, createdAt);
 
-    claimLegacyVehicles(id);
     seedExampleVehiclesForUser(id);
   });
 
@@ -630,8 +664,10 @@ export function updateVehicle(
   };
 
   db.prepare(
-    'UPDATE vehicles SET type = ?, nickname = ?, make = ?, model = ?, year = ?, mileage = ? WHERE id = ?'
-  ).run(next.type, next.nickname, next.make, next.model, next.year, next.mileage, id);
+    `UPDATE vehicles
+        SET type = ?, nickname = ?, make = ?, model = ?, year = ?, mileage = ?
+      WHERE id = ? AND user_id = ?`
+  ).run(next.type, next.nickname, next.make, next.model, next.year, next.mileage, id, userId);
 
   return getVehicleById(id, userId);
 }
@@ -654,10 +690,15 @@ export function deleteVehicle(id: string, userId: string): boolean {
 
 export function recordDiagnosis(
   vehicleId: string,
+  userId: string,
   source: DiagnosisSource,
   symptomIds: string[],
   matches: DiagnosisMatch[]
-): DiagnosisRecord {
+): DiagnosisRecord | undefined {
+  // Keep the ownership check in the data layer as well as the route. A future
+  // caller cannot accidentally attach a diagnosis to somebody else's vehicle.
+  if (!getVehicleById(vehicleId, userId)) return undefined;
+
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   db.prepare(

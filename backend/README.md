@@ -107,8 +107,10 @@ credential handling.
 SQLite lives at `DB_PATH` (default `backend/torquedoc.db`). The schema is
 created automatically with `CREATE TABLE IF NOT EXISTS`, and additive account
 migrations run on startup; there is no separate migration command. An old
-single-tenant database is upgraded in place, and its unowned vehicles are
-claimed by the first account created.
+single-tenant database is upgraded in place. Startup cleanup removes unowned
+vehicles and vehicles whose timestamps predate their owner's account (the old
+first-account inheritance bug), together with their diagnosis records. No
+account inherits another account's garage.
 
 The seed catalog is in `src/data/catalog.ts`. It has a `CATALOG_VERSION`
 constant:

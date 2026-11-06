@@ -89,8 +89,9 @@ Passwords are typed only on the auth screen and are never stored by the app.
   server in the background.
 - The dashboard at `/dashboard` uses the same account.
 
-The first account created after upgrading an older single-tenant database
-claims the pre-account vehicles. Later accounts start with the two examples.
+No account ever inherits another account's vehicles. New accounts start with
+two private example vehicles, and the backend purges pre-account or
+migration-inherited rows on startup.
 
 ## What's in the app
 

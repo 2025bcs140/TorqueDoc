@@ -23,7 +23,7 @@ test('TorqueDoc API', async (t) => {
   process.env.NODE_ENV = 'test';
   process.env.MAX_UPLOAD_MB = '10';
 
-  const { initDb, closeDb } = await import('../src/db');
+  const { initDb, closeDb, db } = await import('../src/db');
   const { createApp } = await import('../src/app');
 
   initDb();
@@ -99,7 +99,7 @@ test('TorqueDoc API', async (t) => {
     });
     assert.equal(dashboard.status, 200);
     assert.match(dashboard.headers.get('content-type') ?? '', /text\/html/);
-    assert.match(await dashboard.text(), /Garage dashboard/);
+    assert.match(await dashboard.text(), /Service dashboard/);
 
     const root = await fetch(`${baseUrl}/`, {
       headers: { accept: 'text/html' },
@@ -114,6 +114,62 @@ test('TorqueDoc API', async (t) => {
     } else {
       assert.equal(web.status, 404);
     }
+  });
+
+  await t.test('startup purge removes vehicles inherited by the old migration', async () => {
+    db.prepare(
+      `INSERT INTO users (id, email, display_name, password_hash, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(
+      'legacy-owner',
+      'legacy-owner@example.invalid',
+      'Legacy Owner',
+      'not-a-real-password-hash',
+      '2025-01-01T00:00:00.000Z'
+    );
+    db.prepare(
+      `INSERT INTO vehicles
+         (id, user_id, type, nickname, make, model, year, mileage, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      'legacy-claimed-car',
+      'legacy-owner',
+      'car',
+      'Inherited Car',
+      'Oldsmobile',
+      'Cutlass',
+      1978,
+      120_000,
+      '2020-01-01T00:00:00.000Z'
+    );
+    db.prepare(
+      `INSERT INTO diagnosis_records
+         (id, vehicle_id, source, symptom_ids, matches, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      'legacy-claimed-diagnosis',
+      'legacy-claimed-car',
+      'checklist',
+      '[]',
+      '[]',
+      '2025-02-01T00:00:00.000Z'
+    );
+
+    // Simulate the next process start against a database that was upgraded
+    // from the old single-tenant build.
+    initDb();
+
+    const vehicle = db
+      .prepare('SELECT id FROM vehicles WHERE id = ?')
+      .get('legacy-claimed-car');
+    assert.equal(vehicle, undefined);
+
+    const diagnosis = db
+      .prepare('SELECT id FROM diagnosis_records WHERE id = ?')
+      .get('legacy-claimed-diagnosis');
+    assert.equal(diagnosis, undefined);
+
+    db.prepare('DELETE FROM users WHERE id = ?').run('legacy-owner');
   });
 
   await t.test('garage routes require a signed-in account', async () => {
@@ -348,6 +404,76 @@ test('TorqueDoc API', async (t) => {
     const single = await api(`/diagnoses/${carDiagnosisId}`);
     assert.equal(single.status, 200);
     assert.equal(single.body.diagnosis.vehicleId, carId);
+  });
+
+  await t.test("accounts cannot mutate or read another account's diagnosis data", async () => {
+    const login = await rawApi(
+      '/auth/login',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: 'other@example.com',
+          password: 'correct-horse-battery',
+        }),
+      },
+      ''
+    );
+    assert.equal(login.status, 200);
+    const otherToken = login.body.token as string;
+
+    const foreignPatch = await rawApi(
+      `/vehicles/${carId}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mileage: 1, nickname: 'Hijacked' }),
+      },
+      otherToken
+    );
+    assert.equal(foreignPatch.status, 404);
+
+    const foreignDelete = await rawApi(
+      `/vehicles/${carId}`,
+      { method: 'DELETE' },
+      otherToken
+    );
+    assert.equal(foreignDelete.status, 404);
+
+    const foreignDiagnose = await rawApi(
+      '/diagnose',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          vehicleType: 'car',
+          symptomIds: ['s_rough_idle'],
+          vehicleId: carId,
+        }),
+      },
+      otherToken
+    );
+    assert.equal(foreignDiagnose.status, 404);
+
+    const foreignDiagnosis = await rawApi(
+      `/diagnoses/${carDiagnosisId}`,
+      undefined,
+      otherToken
+    );
+    assert.equal(foreignDiagnosis.status, 404);
+
+    const foreignHistory = await rawApi(
+      `/vehicles/${carId}/history`,
+      undefined,
+      otherToken
+    );
+    assert.equal(foreignHistory.status, 404);
+
+    // The original account's vehicle and mileage must be untouched.
+    const ownVehicle = await api(`/vehicles/${carId}`);
+    assert.equal(ownVehicle.status, 200);
+    assert.equal(ownVehicle.body.vehicle.mileage, 43_500);
+    assert.equal(ownVehicle.body.vehicle.nickname, null);
   });
 
   await t.test('diagnose rejects a vehicle of the wrong type', async () => {

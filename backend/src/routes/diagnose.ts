@@ -81,7 +81,7 @@ router.post('/diagnose', (req, res) => {
   const matches = diagnose(symptomIds, vehicleType, catalog);
 
   const record = diagnosedVehicleId
-    ? recordDiagnosis(diagnosedVehicleId, source, symptomIds, matches)
+    ? recordDiagnosis(diagnosedVehicleId, req.user!.id, source, symptomIds, matches)
     : undefined;
 
   res.json({
