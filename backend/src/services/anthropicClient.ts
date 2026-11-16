@@ -115,12 +115,14 @@ function extractJson(text: string): unknown {
  */
 export async function askClaudeForJson<T>(
   systemPrompt: string,
-  userContent: AiContentBlock[]
+  userContent: AiContentBlock[],
+  options: { timeoutMs?: number } = {}
 ): Promise<T> {
   if (!config.anthropicApiKey) {
     throw new MissingApiKeyError();
   }
 
+  const timeoutMs = Math.max(5_000, options.timeoutMs ?? config.aiTimeoutMs);
   const body = JSON.stringify(buildClaudeRequestBody(systemPrompt, userContent));
 
   let lastError: Error | undefined;
@@ -136,12 +138,12 @@ export async function askClaudeForJson<T>(
           'x-api-key': config.anthropicApiKey,
         },
         body,
-        signal: AbortSignal.timeout(config.aiTimeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {
         throw new AnthropicRequestError(
-          `Claude API request timed out after ${Math.round(config.aiTimeoutMs / 1000)}s`
+          `Claude API request timed out after ${Math.round(timeoutMs / 1000)}s`
         );
       }
       throw new AnthropicRequestError(

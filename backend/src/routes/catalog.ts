@@ -10,18 +10,18 @@ import { notFound, requireVehicleType } from '../http';
 
 const router = Router();
 
-router.get('/symptoms', (req, res) => {
+router.get('/symptoms', async (req, res) => {
   const vehicleType = requireVehicleType(req.query.vehicleType, '?vehicleType=');
-  res.json({ symptoms: getSymptomsForVehicleType(vehicleType) });
+  res.json({ symptoms: await getSymptomsForVehicleType(vehicleType) });
 });
 
-router.get('/repair-guides', (req, res) => {
+router.get('/repair-guides', async (req, res) => {
   const vehicleType = requireVehicleType(req.query.vehicleType, '?vehicleType=');
-  res.json({ repairGuides: getRepairGuidesForVehicleType(vehicleType) });
+  res.json({ repairGuides: await getRepairGuidesForVehicleType(vehicleType) });
 });
 
-router.get('/repair-guides/:id', (req, res) => {
-  const guide = getRepairGuideById(req.params.id);
+router.get('/repair-guides/:id', async (req, res) => {
+  const guide = await getRepairGuideById(req.params.id);
   if (!guide) throw notFound('Repair guide not found');
   res.json({ repairGuide: guide });
 });
@@ -30,10 +30,10 @@ router.get('/repair-guides/:id', (req, res) => {
  * Convenience endpoint for tooling and future clients: the whole catalog in
  * one response. The mobile app uses the filtered endpoints above.
  */
-router.get('/catalog', (_req, res) => {
+router.get('/catalog', async (_req, res) => {
   res.json({
-    symptoms: getAllSymptoms(),
-    repairGuides: getAllRepairGuides(),
+    symptoms: await getAllSymptoms(),
+    repairGuides: await getAllRepairGuides(),
   });
 });
 

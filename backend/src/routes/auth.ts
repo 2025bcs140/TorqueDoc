@@ -63,7 +63,7 @@ function rejectUnknownFields(body: Record<string, unknown>, allowed: string[]): 
   }
 }
 
-router.post('/register', authRateLimiter, (req, res) => {
+router.post('/register', authRateLimiter, async (req, res) => {
   if (!isPlainObject(req.body)) throw badRequest('Request body must be a JSON object');
   rejectUnknownFields(req.body, ['email', 'password', 'displayName']);
 
@@ -71,7 +71,7 @@ router.post('/register', authRateLimiter, (req, res) => {
   const password = parsePassword(req.body.password);
   const displayName = parseDisplayName(req.body.displayName, email);
 
-  if (getUserCredentialsByEmail(email)) {
+  if (await getUserCredentialsByEmail(email)) {
     res.status(409).json({
       error: 'An account with that email already exists. Sign in instead.',
       code: 'EMAIL_TAKEN',
@@ -79,12 +79,12 @@ router.post('/register', authRateLimiter, (req, res) => {
     return;
   }
 
-  const user = createUser({
+  const user = await createUser({
     email,
     displayName,
     passwordHash: hashPassword(password),
   });
-  const session = createSession(user.id);
+  const session = await createSession(user.id);
 
   res.status(201).json({
     token: session.token,
@@ -93,14 +93,14 @@ router.post('/register', authRateLimiter, (req, res) => {
   });
 });
 
-router.post('/login', authRateLimiter, (req, res) => {
+router.post('/login', authRateLimiter, async (req, res) => {
   if (!isPlainObject(req.body)) throw badRequest('Request body must be a JSON object');
   rejectUnknownFields(req.body, ['email', 'password']);
 
   const email = parseEmail(req.body.email);
   const password = parsePassword(req.body.password);
 
-  const credentials = getUserCredentialsByEmail(email);
+  const credentials = await getUserCredentialsByEmail(email);
   // Always verify against a real hash so an unknown email and a wrong password
   // take comparable time.
   const valid = verifyPassword(password, credentials?.passwordHash ?? DUMMY_PASSWORD_HASH);
@@ -113,7 +113,7 @@ router.post('/login', authRateLimiter, (req, res) => {
     return;
   }
 
-  const session = createSession(credentials.user.id);
+  const session = await createSession(credentials.user.id);
   res.json({
     token: session.token,
     expiresAt: session.expiresAt,
@@ -125,8 +125,8 @@ router.get('/me', requireUser, (req, res) => {
   res.json({ user: req.user });
 });
 
-router.post('/logout', requireUser, (req, res) => {
-  revokeSession(getSessionToken(req));
+router.post('/logout', requireUser, async (req, res) => {
+  await revokeSession(getSessionToken(req));
   res.status(204).end();
 });
 

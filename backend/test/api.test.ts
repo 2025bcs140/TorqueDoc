@@ -16,6 +16,7 @@ import type { Server } from 'node:http';
 test('TorqueDoc API', async (t) => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'torquedoc-api-test-'));
   process.env.DB_PATH = path.join(tempDir, 'test.db');
+  process.env.DATABASE_URL = '';
   process.env.ANTHROPIC_API_KEY = '';
   process.env.CLOUDFLARE_ACCOUNT_ID = '';
   process.env.CLOUDFLARE_API_TOKEN = '';
@@ -23,10 +24,10 @@ test('TorqueDoc API', async (t) => {
   process.env.NODE_ENV = 'test';
   process.env.MAX_UPLOAD_MB = '10';
 
-  const { initDb, closeDb, db } = await import('../src/db');
+  const { initDb, closeDb, executeSql } = await import('../src/db');
   const { createApp } = await import('../src/app');
 
-  initDb();
+  await initDb();
 
   const server: Server = createApp().listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -38,7 +39,7 @@ test('TorqueDoc API', async (t) => {
       server.close(() => resolve());
       server.closeAllConnections();
     });
-    closeDb();
+    await closeDb();
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -117,59 +118,63 @@ test('TorqueDoc API', async (t) => {
   });
 
   await t.test('startup purge removes vehicles inherited by the old migration', async () => {
-    db.prepare(
+    await executeSql(
       `INSERT INTO users (id, email, display_name, password_hash, created_at)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(
-      'legacy-owner',
-      'legacy-owner@example.invalid',
-      'Legacy Owner',
-      'not-a-real-password-hash',
-      '2025-01-01T00:00:00.000Z'
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        'legacy-owner',
+        'legacy-owner@example.invalid',
+        'Legacy Owner',
+        'not-a-real-password-hash',
+        '2025-01-01T00:00:00.000Z',
+      ]
     );
-    db.prepare(
+    await executeSql(
       `INSERT INTO vehicles
          (id, user_id, type, nickname, make, model, year, mileage, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      'legacy-claimed-car',
-      'legacy-owner',
-      'car',
-      'Inherited Car',
-      'Oldsmobile',
-      'Cutlass',
-      1978,
-      120_000,
-      '2020-01-01T00:00:00.000Z'
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        'legacy-claimed-car',
+        'legacy-owner',
+        'car',
+        'Inherited Car',
+        'Oldsmobile',
+        'Cutlass',
+        1978,
+        120_000,
+        '2020-01-01T00:00:00.000Z',
+      ]
     );
-    db.prepare(
+    await executeSql(
       `INSERT INTO diagnosis_records
          (id, vehicle_id, source, symptom_ids, matches, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(
-      'legacy-claimed-diagnosis',
-      'legacy-claimed-car',
-      'checklist',
-      '[]',
-      '[]',
-      '2025-02-01T00:00:00.000Z'
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        'legacy-claimed-diagnosis',
+        'legacy-claimed-car',
+        'checklist',
+        '[]',
+        '[]',
+        '2025-02-01T00:00:00.000Z',
+      ]
     );
 
     // Simulate the next process start against a database that was upgraded
     // from the old single-tenant build.
-    initDb();
+    await initDb();
 
-    const vehicle = db
-      .prepare('SELECT id FROM vehicles WHERE id = ?')
-      .get('legacy-claimed-car');
-    assert.equal(vehicle, undefined);
+    const vehicle = await executeSql('SELECT id FROM vehicles WHERE id = ?', [
+      'legacy-claimed-car',
+    ]);
+    assert.equal(vehicle.length, 0);
 
-    const diagnosis = db
-      .prepare('SELECT id FROM diagnosis_records WHERE id = ?')
-      .get('legacy-claimed-diagnosis');
-    assert.equal(diagnosis, undefined);
+    const diagnosis = await executeSql(
+      'SELECT id FROM diagnosis_records WHERE id = ?',
+      ['legacy-claimed-diagnosis']
+    );
+    assert.equal(diagnosis.length, 0);
 
-    db.prepare('DELETE FROM users WHERE id = ?').run('legacy-owner');
+    await executeSql('DELETE FROM users WHERE id = ?', ['legacy-owner']);
   });
 
   await t.test('garage routes require a signed-in account', async () => {
@@ -254,6 +259,27 @@ test('TorqueDoc API', async (t) => {
       )
     );
 
+    const drilling = await api('/symptoms?vehicleType=drilling_machine');
+    assert.equal(drilling.status, 200);
+    assert.ok(drilling.body.symptoms.length > 0);
+    assert.ok(
+      drilling.body.symptoms.every((symptom: { vehicleTypes: string[] }) =>
+        symptom.vehicleTypes.includes('drilling_machine')
+      )
+    );
+
+    const machineGuides = await api('/repair-guides?vehicleType=lifting_machine');
+    assert.equal(machineGuides.status, 200);
+    assert.ok(machineGuides.body.repairGuides.length > 0);
+    assert.ok(
+      machineGuides.body.repairGuides.every((guide: { vehicleTypes: string[] }) =>
+        guide.vehicleTypes.includes('lifting_machine')
+      )
+    );
+
+    const invalid = await api('/symptoms?vehicleType=trailer');
+    assert.equal(invalid.status, 400);
+
     const motorcycle = await api('/symptoms?vehicleType=motorcycle');
     assert.equal(motorcycle.status, 200);
     assert.ok(
@@ -265,6 +291,27 @@ test('TorqueDoc API', async (t) => {
     const missing = await api('/symptoms');
     assert.equal(missing.status, 400);
     assert.equal(missing.body.code, 'VALIDATION_ERROR');
+  });
+
+  await t.test('vehicle catalog exposes machine picks and validates types', async () => {
+    const makes = await api('/vehicle-catalog/makes?type=milling_machine');
+    assert.equal(makes.status, 200);
+    assert.equal(makes.body.source, 'builtin');
+    assert.ok(makes.body.makes.includes('Haas'));
+
+    const models = await api(
+      '/vehicle-catalog/models?type=milling_machine&make=Haas&year=2026'
+    );
+    assert.equal(models.status, 200);
+    assert.ok(models.body.models.includes('VF-2'));
+
+    const carMakes = await api('/vehicle-catalog/makes?type=car');
+    assert.equal(carMakes.status, 200);
+    assert.ok(carMakes.body.makes.length > 0);
+    assert.ok(['nhtsa', 'fallback'].includes(carMakes.body.source));
+
+    const invalid = await api('/vehicle-catalog/makes?type=trailer');
+    assert.equal(invalid.status, 400);
   });
 
   await t.test('vehicle list includes exactly the seeded examples on a fresh database', async () => {
@@ -404,6 +451,26 @@ test('TorqueDoc API', async (t) => {
     const single = await api(`/diagnoses/${carDiagnosisId}`);
     assert.equal(single.status, 200);
     assert.equal(single.body.diagnosis.vehicleId, carId);
+  });
+
+  await t.test('profile reports account stats, recent activity and a referral link', async () => {
+    const profile = await api('/profile');
+    assert.equal(profile.status, 200);
+    assert.equal(profile.body.profile.user.email, 'tester@example.com');
+    assert.equal(profile.body.profile.stats.assets, 3);
+    assert.equal(profile.body.profile.stats.diagnoses, 1);
+    assert.equal(profile.body.profile.stats.vehicles, 3);
+    assert.equal(profile.body.profile.stats.machines, 0);
+    assert.equal(profile.body.profile.status, 'active');
+    assert.equal(profile.body.profile.latestActivity.id, carDiagnosisId);
+    assert.equal(profile.body.profile.recentActivity.length, 1);
+    assert.ok(profile.body.profile.recentActivity[0].symptomCount >= 2);
+    assert.match(profile.body.profile.referral.code, /^TD-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    assert.match(profile.body.profile.referral.url, /\/app\?ref=TD-/);
+    assert.equal(profile.body.profile.storage, 'sqlite');
+
+    const anonymous = await rawApi('/profile', undefined, '');
+    assert.equal(anonymous.status, 401);
   });
 
   await t.test("accounts cannot mutate or read another account's diagnosis data", async () => {

@@ -104,15 +104,42 @@ async function extractFrameAt(
   );
 }
 
+export interface ExtractedVideoFrames {
+  frames: string[];
+  durationSeconds: number;
+}
+
 /**
- * Samples up to three frames spread across a short video clip and returns
- * them as base64 JPEG strings.
+ * Pick useful sample points without decoding the whole clip. Short clips get
+ * three frames; longer clips get four or five so the model can see a change
+ * over time. Offsets avoid the first and last few percent, which are often
+ * black frames or camera shake.
+ */
+export function chooseFrameOffsets(durationSeconds: number): number[] {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return [0];
+
+  const count = durationSeconds <= 20 ? 3 : durationSeconds <= 90 ? 4 : 5;
+  const first = durationSeconds * 0.15;
+  const last = durationSeconds * 0.85;
+  return Array.from(
+    { length: count },
+    (_value, index) => first + ((last - first) * index) / (count - 1)
+  );
+}
+
+/**
+ * Samples frames across a video and returns them as base64 JPEG strings plus
+ * the probed duration. The route uses the duration/file size to choose a
+ * larger analysis budget for a long or high-bitrate upload, while the phone
+ * client uses the same information to avoid timing out early.
  *
  * A still frame cannot capture sound, so this is only useful for things that
  * show up visually (smoke, a leak, a wobbling part). The prompt built in
  * routes/mediaAnalyze.ts says so explicitly.
  */
-export async function extractVideoFramesBase64(videoBuffer: Buffer): Promise<string[]> {
+export async function extractVideoFramesBase64(
+  videoBuffer: Buffer
+): Promise<ExtractedVideoFrames> {
   if (!(await isFfmpegAvailable())) {
     throw new FfmpegNotFoundError();
   }
@@ -124,17 +151,14 @@ export async function extractVideoFramesBase64(videoBuffer: Buffer): Promise<str
     await writeFile(videoPath, videoBuffer);
 
     const duration = await getDurationSeconds(videoPath);
-    const offsets =
-      duration > 0
-        ? [duration * 0.2, duration * 0.5, duration * 0.8]
-        : [0]; // fall back to the first frame when duration is unreadable
+    const offsets = chooseFrameOffsets(duration);
+    const frames: (string | undefined)[] = new Array(offsets.length);
 
-    const frames: string[] = [];
-    const readFrame = async (timeSeconds: number): Promise<void> => {
-      const framePath = path.join(dir, `frame_${frames.length}.jpg`);
+    const readFrame = async (timeSeconds: number, index: number): Promise<void> => {
+      const framePath = path.join(dir, `frame_${index}.jpg`);
       try {
         await extractFrameAt(videoPath, timeSeconds, framePath);
-        frames.push((await readFile(framePath)).toString('base64'));
+        frames[index] = (await readFile(framePath)).toString('base64');
       } catch (error) {
         if (isMissingBinary(error)) throw new FfmpegNotFoundError();
         // A particular offset can fail on very short or variable-frame-rate
@@ -147,17 +171,27 @@ export async function extractVideoFramesBase64(videoBuffer: Buffer): Promise<str
       }
     };
 
-    for (const offset of offsets) {
-      await readFrame(offset);
+    // Two ffmpeg processes at a time keeps a long clip responsive without
+    // overwhelming the small CPU allowance on a free hosted instance.
+    const concurrency = 2;
+    for (let start = 0; start < offsets.length; start += concurrency) {
+      await Promise.all(
+        offsets.slice(start, start + concurrency).map((offset, offsetIndex) =>
+          readFrame(offset, start + offsetIndex)
+        )
+      );
     }
 
     // Some codecs refuse mid-stream seeks. Reading the opening frame is a
     // useful last resort and still gives the vision model something to see.
-    if (frames.length === 0 && duration > 0) {
-      await readFrame(0);
+    if (frames.every((frame) => frame === undefined) && duration > 0) {
+      await readFrame(0, 0);
     }
 
-    return frames;
+    return {
+      frames: frames.filter((frame): frame is string => typeof frame === 'string'),
+      durationSeconds: duration,
+    };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

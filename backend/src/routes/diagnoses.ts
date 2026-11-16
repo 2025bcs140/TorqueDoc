@@ -9,8 +9,8 @@ const router = Router();
  * detail screen so a record can be opened directly without re-running the
  * diagnosis or relying on navigation params.
  */
-router.get('/:id', (req, res) => {
-  const record = getDiagnosisById(req.params.id, req.user!.id);
+router.get('/:id', async (req, res) => {
+  const record = await getDiagnosisById(req.params.id, req.user!.id);
   if (!record) throw notFound('Diagnosis not found');
   res.json({ diagnosis: record });
 });

@@ -1,4 +1,4 @@
-import { VehicleType } from './types';
+import { VEHICLE_TYPES, VehicleType } from './types';
 
 /**
  * Small HTTP error type shared by every route.
@@ -33,7 +33,7 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export const VEHICLE_TYPES: VehicleType[] = ['car', 'motorcycle'];
+export { VEHICLE_TYPES };
 
 export function isVehicleType(value: unknown): value is VehicleType {
   return typeof value === 'string' && VEHICLE_TYPES.includes(value as VehicleType);

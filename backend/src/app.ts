@@ -3,7 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config';
-import { db } from './db';
+import { checkDatabase, databaseDialect } from './db';
 import { accessTokenGuard } from './middleware/accessToken';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { aiRateLimiter, apiRateLimiter } from './middleware/rateLimit';
@@ -16,6 +16,8 @@ import diagnoseRouter from './routes/diagnose';
 import diagnosesRouter from './routes/diagnoses';
 import aiSymptomsRouter from './routes/aiSymptoms';
 import mediaAnalyzeRouter from './routes/mediaAnalyze';
+import profileRouter from './routes/profile';
+import vehicleCatalogRouter from './routes/vehicleCatalog';
 import { isFfmpegAvailable } from './services/videoFrames';
 import { renderDashboard } from './dashboard';
 
@@ -80,8 +82,12 @@ export function createApp(): express.Express {
         health: 'GET /health',
         auth: 'POST /auth/register, POST /auth/login, GET /auth/me, POST /auth/logout',
         vehicles: 'GET|POST /vehicles, GET|PATCH|DELETE /vehicles/:id',
+        vehicleCatalog:
+          'GET /vehicle-catalog/makes?type=car|motorcycle|drilling_machine|milling_machine|lifting_machine, GET /vehicle-catalog/models?type=...&make=Toyota&year=2026',
+        profile: 'GET /profile',
         history: 'GET /vehicles/:id/history?limit=100',
-        symptoms: 'GET /symptoms?vehicleType=car|motorcycle',
+        symptoms:
+          'GET /symptoms?vehicleType=car|motorcycle|drilling_machine|milling_machine|lifting_machine',
         repairGuides: 'GET /repair-guides?vehicleType=…, GET /repair-guides/:id',
         catalog: 'GET /catalog',
         diagnose: 'POST /diagnose',
@@ -122,7 +128,7 @@ export function createApp(): express.Express {
   app.get('/health', async (_req, res) => {
     let databaseOk = false;
     try {
-      db.prepare('SELECT 1').get();
+      await checkDatabase();
       databaseOk = true;
     } catch {
       databaseOk = false;
@@ -133,6 +139,7 @@ export function createApp(): express.Express {
     res.status(databaseOk ? 200 : 503).json({
       ok: databaseOk,
       database: databaseOk ? 'ok' : 'error',
+      databaseProvider: databaseDialect,
       ai: {
         configured: config.aiConfigured,
         provider: config.aiProvider,
@@ -140,6 +147,7 @@ export function createApp(): express.Express {
         audioModel: config.aiProvider === 'cloudflare' ? config.cloudflareAudioModel : null,
       },
       auth: 'required',
+      vehicleCatalog: 'nhtsa-with-offline-fallback',
       videoAnalysis: ffmpegAvailable ? 'available' : 'unavailable',
       audioAnalysis:
         config.aiProvider === 'cloudflare' && ffmpegAvailable ? 'available' : 'unavailable',
@@ -158,6 +166,8 @@ export function createApp(): express.Express {
   app.use('/v1', aiRateLimiter);
 
   app.use('/vehicles', vehiclesRouter);
+  app.use('/vehicle-catalog', vehicleCatalogRouter);
+  app.use('/profile', profileRouter);
   // These routers declare their own full paths (/symptoms, /diagnose, …).
   app.use('/', catalogRouter);
   app.use('/', diagnoseRouter);

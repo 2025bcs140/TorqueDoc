@@ -21,12 +21,20 @@ export function getSessionToken(req: Request): string {
  * Resolve an optional user session. Invalid/expired tokens are left unset so
  * the shared-key guard can still allow public endpoints such as login.
  */
-export function attachUser(req: Request, _res: Response, next: NextFunction): void {
-  const token = getSessionToken(req);
-  if (token) {
-    req.user = getUserBySessionToken(token);
+export async function attachUser(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const token = getSessionToken(req);
+    if (token) {
+      req.user = await getUserBySessionToken(token);
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 }
 
 export function requireUser(req: Request, res: Response, next: NextFunction): void {

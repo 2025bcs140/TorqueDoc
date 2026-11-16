@@ -156,5 +156,15 @@ export const categoryLabel = (category: SymptomCategory): string => {
       return 'Exhaust';
     case 'drive_chain_clutch':
       return 'Drive chain & clutch';
+    case 'spindle_drive':
+      return 'Spindle & drive';
+    case 'lubrication_coolant':
+      return 'Lubrication & coolant';
+    case 'hydraulics':
+      return 'Hydraulics';
+    case 'controls_electrical':
+      return 'Controls & electrical';
+    case 'structure_safety':
+      return 'Structure & safety';
   }
 };

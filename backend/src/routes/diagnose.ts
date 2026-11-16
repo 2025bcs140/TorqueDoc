@@ -43,7 +43,7 @@ function parseSource(value: unknown): DiagnosisSource {
   return value as DiagnosisSource;
 }
 
-router.post('/diagnose', (req, res) => {
+router.post('/diagnose', async (req, res) => {
   if (!isPlainObject(req.body)) throw badRequest('Request body must be a JSON object');
 
   const vehicleType: VehicleType = requireVehicleType(req.body.vehicleType);
@@ -55,7 +55,10 @@ router.post('/diagnose', (req, res) => {
     throw badRequest('vehicleId must be a non-empty string when provided');
   }
 
-  const catalog = { symptoms: getAllSymptoms(), causes: getAllCauses() };
+  const catalog = {
+    symptoms: await getAllSymptoms(),
+    causes: await getAllCauses(),
+  };
 
   const unknownIds = findUnknownSymptomIds(symptomIds, vehicleType, catalog);
   if (unknownIds.length > 0) {
@@ -67,7 +70,7 @@ router.post('/diagnose', (req, res) => {
 
   let diagnosedVehicleId: string | undefined;
   if (typeof vehicleId === 'string') {
-    const vehicle = getVehicleById(vehicleId, req.user!.id);
+    const vehicle = await getVehicleById(vehicleId, req.user!.id);
     if (!vehicle) throw notFound('vehicleId provided but no matching vehicle was found');
     if (vehicle.type !== vehicleType) {
       throw badRequest(
@@ -81,7 +84,7 @@ router.post('/diagnose', (req, res) => {
   const matches = diagnose(symptomIds, vehicleType, catalog);
 
   const record = diagnosedVehicleId
-    ? recordDiagnosis(diagnosedVehicleId, req.user!.id, source, symptomIds, matches)
+    ? await recordDiagnosis(diagnosedVehicleId, req.user!.id, source, symptomIds, matches)
     : undefined;
 
   res.json({

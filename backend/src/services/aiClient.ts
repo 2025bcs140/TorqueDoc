@@ -28,14 +28,15 @@ export function getConfiguredAiModel(): string | null {
 
 export async function askAiForJson<T>(
   systemPrompt: string,
-  userContent: AiContentBlock[]
+  userContent: AiContentBlock[],
+  options: { timeoutMs?: number } = {}
 ): Promise<T> {
   if (config.aiProvider === 'cloudflare') {
-    return askCloudflareForJson<T>(systemPrompt, userContent);
+    return askCloudflareForJson<T>(systemPrompt, userContent, options);
   }
 
   if (config.aiProvider === 'anthropic') {
-    return askClaudeForJson<T>(systemPrompt, userContent);
+    return askClaudeForJson<T>(systemPrompt, userContent, options);
   }
 
   throw new AiNotConfiguredError();

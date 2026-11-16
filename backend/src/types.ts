@@ -1,4 +1,39 @@
-export type VehicleType = 'car' | 'motorcycle';
+/**
+ * Every asset TorqueDoc can keep in a garage. Cars and motorcycles use the
+ * vehicle symptom catalog; the three machine types use the industrial
+ * equipment catalog. Keeping this as one union lets diagnosis, history and
+ * account isolation share the same storage path.
+ */
+export const VEHICLE_TYPES = [
+  'car',
+  'motorcycle',
+  'drilling_machine',
+  'milling_machine',
+  'lifting_machine',
+] as const;
+
+export type VehicleType = (typeof VEHICLE_TYPES)[number];
+export type MachineVehicleType = Exclude<VehicleType, 'car' | 'motorcycle'>;
+
+export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
+  car: 'Car',
+  motorcycle: 'Motorcycle',
+  drilling_machine: 'Drilling machine',
+  milling_machine: 'Milling machine',
+  lifting_machine: 'Lifting machine',
+};
+
+export const VEHICLE_CATEGORIES = {
+  car: 'vehicle',
+  motorcycle: 'vehicle',
+  drilling_machine: 'machine',
+  milling_machine: 'machine',
+  lifting_machine: 'machine',
+} as const satisfies Record<VehicleType, 'vehicle' | 'machine'>;
+
+export function isMachineType(type: VehicleType): type is MachineVehicleType {
+  return VEHICLE_CATEGORIES[type] === 'machine';
+}
 
 /**
  * A signed-in TorqueDoc account. Password hashes and session hashes never leave
@@ -28,7 +63,12 @@ export type SymptomCategory =
   | 'brakes'
   | 'cooling'
   | 'exhaust'
-  | 'drive_chain_clutch';
+  | 'drive_chain_clutch'
+  | 'spindle_drive'
+  | 'lubrication_coolant'
+  | 'hydraulics'
+  | 'controls_electrical'
+  | 'structure_safety';
 
 export interface Symptom {
   id: string;

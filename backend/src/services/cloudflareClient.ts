@@ -139,11 +139,14 @@ export function extractCloudflareResponseText(data: CloudflareResponse): string 
  */
 export async function askCloudflareForJson<T>(
   systemPrompt: string,
-  userContent: AiContentBlock[]
+  userContent: AiContentBlock[],
+  options: { timeoutMs?: number } = {}
 ): Promise<T> {
   if (!config.cloudflareAccountId || !config.cloudflareApiToken) {
     throw new AiNotConfiguredError();
   }
+
+  const timeoutMs = Math.max(5_000, options.timeoutMs ?? config.aiTimeoutMs);
 
   const hasImages = userContent.some((block) => block.type === 'image');
   const model = hasImages ? config.cloudflareVisionModel : config.cloudflareModel;
@@ -171,12 +174,12 @@ export async function askCloudflareForJson<T>(
           'content-type': 'application/json',
         },
         body,
-        signal: AbortSignal.timeout(config.aiTimeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'TimeoutError') {
         throw new AiRequestError(
-          `Cloudflare Workers AI request timed out after ${Math.round(config.aiTimeoutMs / 1000)}s`
+          `Cloudflare Workers AI request timed out after ${Math.round(timeoutMs / 1000)}s`
         );
       }
       throw new AiRequestError(

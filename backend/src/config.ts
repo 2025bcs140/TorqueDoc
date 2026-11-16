@@ -39,6 +39,18 @@ const rawDbPath = readString('DB_PATH', 'torquedoc.db');
 const dbPath = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(BACKEND_ROOT, rawDbPath);
 
 /**
+ * A Postgres connection string switches the API to durable hosted storage.
+ * SQLite remains the zero-setup local/test database when this is unset.
+ * Neon's pooled connection strings look like:
+ *   postgresql://user:password@host/db?sslmode=require
+ */
+const rawDatabaseUrl = readString('DATABASE_URL', '');
+if (rawDatabaseUrl.length > 0 && !/^postgres(ql)?:\/\//i.test(rawDatabaseUrl)) {
+  throw new Error('DATABASE_URL must be a postgres:// or postgresql:// connection string');
+}
+const databaseUrl = rawDatabaseUrl.length > 0 ? rawDatabaseUrl : null;
+
+/**
  * Reject obvious placeholders (for example the values shipped in
  * `.env.example`) so the AI endpoints return a helpful 503 instead of
  * forwarding a guaranteed-401 request upstream.
@@ -99,6 +111,8 @@ export const config = {
   backendRoot: BACKEND_ROOT,
   port: readInt('PORT', 3000, 0, 65535),
   dbPath,
+  databaseUrl,
+  databaseProvider: databaseUrl ? ('postgres' as const) : ('sqlite' as const),
 
   anthropicApiKey,
   anthropicModel,
@@ -123,7 +137,12 @@ export const config = {
   aiConfigured: aiProvider !== null,
   aiTimeoutMs: readInt('AI_TIMEOUT_MS', 60_000, 5_000, 180_000),
 
-  maxUploadMb: readInt('MAX_UPLOAD_MB', 30, 1, 200),
+  // Multer rejects anything larger than this before a route sees it. Videos
+  // have their own, smaller production limit below; the global ceiling leaves
+  // room for a future larger media type without a code change.
+  maxUploadMb: readInt('MAX_UPLOAD_MB', 100, 1, 250),
+  maxVideoUploadMb: readInt('MAX_VIDEO_MB', 80, 1, 200),
+  publicAppUrl: readString('PUBLIC_APP_URL', '').replace(/\/+$/, ''),
   corsOrigin: readString('CORS_ORIGIN', '*'),
   logRequests: readString('LOG_REQUESTS', 'true') !== 'false',
 

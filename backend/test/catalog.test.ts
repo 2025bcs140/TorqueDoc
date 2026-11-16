@@ -8,7 +8,13 @@ import {
 } from '../src/data/catalog';
 import { VehicleType } from '../src/types';
 
-const VEHICLE_TYPES: VehicleType[] = ['car', 'motorcycle'];
+const VEHICLE_TYPES: VehicleType[] = [
+  'car',
+  'motorcycle',
+  'drilling_machine',
+  'milling_machine',
+  'lifting_machine',
+];
 
 function assertUnique(ids: string[], label: string): void {
   assert.equal(new Set(ids).size, ids.length, `${label} contains duplicate ids`);

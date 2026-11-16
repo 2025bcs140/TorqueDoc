@@ -14,10 +14,10 @@ interface InterpretResult {
   summary: string;
 }
 
-const SYSTEM_PROMPT = `You are the symptom-interpretation layer of a vehicle repair app called TorqueDoc.
+const SYSTEM_PROMPT = `You are the symptom-interpretation layer of a vehicle and industrial-machine repair app called TorqueDoc.
 You are given a fixed taxonomy of known symptom ids and a person's free-text description of a
-problem with their car or motorcycle. Map their description onto the symptom ids it genuinely
-matches. Don't force a match if nothing fits well — it's fine to return an empty list.
+problem with their car, motorcycle, drill, mill, or lifting machine. Map their description onto the symptom ids it genuinely
+matches. Don't force a match if nothing fits well - it's fine to return an empty list.
 Only use ids from the provided taxonomy. Never invent an id.
 
 Respond with ONLY a JSON object, no other text, matching exactly this shape:
@@ -31,13 +31,13 @@ router.post('/interpret', async (req, res) => {
   const vehicleType = requireVehicleType(req.body.vehicleType);
   const description = requireString(req.body.description, 'description', { min: 3, max: 2_000 });
 
-  const relevantSymptoms = getSymptomsForVehicleType(vehicleType).map((symptom) => ({
+  const relevantSymptoms = (await getSymptomsForVehicleType(vehicleType)).map((symptom) => ({
     id: symptom.id,
     label: symptom.label,
     category: symptom.category,
   }));
 
-  const userPrompt = `Vehicle type: ${vehicleType}
+  const userPrompt = `Equipment type: ${vehicleType}
 
 Known symptoms:
 ${JSON.stringify(relevantSymptoms, null, 2)}

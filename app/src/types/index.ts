@@ -1,4 +1,36 @@
-export type VehicleType = 'car' | 'motorcycle';
+export const VEHICLE_TYPES = [
+  'car',
+  'motorcycle',
+  'drilling_machine',
+  'milling_machine',
+  'lifting_machine',
+] as const;
+
+export type VehicleType = (typeof VEHICLE_TYPES)[number];
+
+export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
+  car: 'Car',
+  motorcycle: 'Motorcycle',
+  drilling_machine: 'Drilling machine',
+  milling_machine: 'Milling machine',
+  lifting_machine: 'Lifting machine',
+};
+
+export const VEHICLE_TYPE_SHORT_LABELS: Record<VehicleType, string> = {
+  car: 'Car',
+  motorcycle: 'Motorcycle',
+  drilling_machine: 'Drill',
+  milling_machine: 'Mill',
+  lifting_machine: 'Lift',
+};
+
+export function vehicleTypeLabel(type: VehicleType, short = false): string {
+  return short ? VEHICLE_TYPE_SHORT_LABELS[type] : VEHICLE_TYPE_LABELS[type];
+}
+
+export function isMachineType(type: VehicleType): boolean {
+  return type.endsWith('_machine');
+}
 
 export interface Vehicle {
   id: string;
@@ -21,7 +53,12 @@ export type SymptomCategory =
   | 'brakes'
   | 'cooling'
   | 'exhaust'
-  | 'drive_chain_clutch';
+  | 'drive_chain_clutch'
+  | 'spindle_drive'
+  | 'lubrication_coolant'
+  | 'hydraulics'
+  | 'controls_electrical'
+  | 'structure_safety';
 
 export interface Symptom {
   id: string;

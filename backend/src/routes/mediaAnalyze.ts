@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
-import { MAX_UPLOAD_BYTES } from '../config';
+import { config, MAX_UPLOAD_BYTES } from '../config';
 import { getSymptomsForVehicleType } from '../db';
 import { badRequest, isPlainObject, optionalString, requireVehicleType } from '../http';
 import {
@@ -27,6 +27,8 @@ type MediaKind = (typeof VALID_KINDS)[number];
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 /** Audio is transcoded and trimmed server-side; this is only an abuse limit. */
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+/** Videos get a dedicated ceiling so a large upload gets a useful 413. */
+const MAX_VIDEO_BYTES = config.maxVideoUploadMb * 1024 * 1024;
 
 const PHOTO_MIME_TYPES: Record<string, AiImageMediaType> = {
   'image/jpeg': 'image/jpeg',
@@ -79,8 +81,8 @@ interface MediaAnalysisResult {
   notes: string;
 }
 
-const SYSTEM_PROMPT = `You are the visual-inspection layer of a vehicle repair app called TorqueDoc.
-Look at the provided vehicle photo or video frame(s) and identify anything diagnostically relevant:
+const SYSTEM_PROMPT = `You are the visual-inspection layer of a vehicle and industrial-machine repair app called TorqueDoc.
+Look at the provided photo or video frame(s) and identify anything diagnostically relevant:
 visible leaks, warning lights, smoke, worn or damaged parts, corrosion, loose components, etc.
 Map what you see onto the given known symptom ids where there's a genuine visual match. If the
 image doesn't show anything diagnostically useful, say so plainly and return empty arrays — don't
@@ -169,6 +171,13 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
     });
   }
 
+  if (kind === 'video' && req.file.size > MAX_VIDEO_BYTES) {
+    return res.status(413).json({
+      error: `That video is larger than ${config.maxVideoUploadMb} MB. Trim it, lower the camera resolution, or use a photo instead.`,
+      code: 'VIDEO_TOO_LARGE',
+    });
+  }
+
   if (kind === 'audio') {
     if (req.file.size > MAX_AUDIO_BYTES) {
       return res.status(413).json({
@@ -196,7 +205,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
       });
     }
 
-    const relevantSymptoms = getSymptomsForVehicleType(vehicleType);
+    const relevantSymptoms = await getSymptomsForVehicleType(vehicleType);
     try {
       const result = await analyzeVehicleAudio(
         vehicleType,
@@ -223,6 +232,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
 
   let base64Frames: { data: string; mediaType: AiImageMediaType }[];
   let frameNote: string;
+  let durationSeconds = 0;
 
   if (kind === 'photo') {
     base64Frames = [
@@ -233,9 +243,9 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
     ];
     frameNote = 'This is a single photo.';
   } else {
-    let frames: string[];
+    let extracted: Awaited<ReturnType<typeof extractVideoFramesBase64>>;
     try {
-      frames = await extractVideoFramesBase64(req.file.buffer);
+      extracted = await extractVideoFramesBase64(req.file.buffer);
     } catch (error) {
       if (error instanceof FfmpegNotFoundError) {
         return res.status(503).json({ error: error.message, code: 'FFMPEG_NOT_FOUND' });
@@ -247,7 +257,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
       });
     }
 
-    if (frames.length === 0) {
+    if (extracted.frames.length === 0) {
       return res.status(422).json({
         error:
           'Could not read any usable frames from that video. Try a photo instead, or a shorter clip.',
@@ -255,11 +265,12 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
       });
     }
 
-    base64Frames = frames.map((data) => ({ data, mediaType: 'image/jpeg' as const }));
-    frameNote = `These ${frames.length} images are frames sampled across a few seconds of video — look for visible change across them (e.g. smoke, a wobbling part, fluid dripping). This path does not analyze the video soundtrack; use TorqueDoc's sound mode for audio.`;
+    durationSeconds = extracted.durationSeconds;
+    base64Frames = extracted.frames.map((data) => ({ data, mediaType: 'image/jpeg' as const }));
+    frameNote = 'These ' + base64Frames.length + ' images are frames sampled across ' + (durationSeconds > 0 ? 'about ' + Math.round(durationSeconds) + ' seconds of' : 'a short') + ' video - look for visible change across them (e.g. smoke, a wobbling part, fluid dripping). ' + 'This path does not analyze the video soundtrack; use TorqueDoc\'s sound mode for audio.';
   }
 
-  const relevantSymptoms = getSymptomsForVehicleType(vehicleType).map((symptom) => ({
+  const relevantSymptoms = (await getSymptomsForVehicleType(vehicleType)).map((symptom) => ({
     id: symptom.id,
     label: symptom.label,
     category: symptom.category,
@@ -268,7 +279,7 @@ router.post('/analyze', uploadSingleFile, async (req, res) => {
   const content = [
     {
       type: 'text' as const,
-      text: `Vehicle type: ${vehicleType}
+      text: `Equipment type: ${vehicleType}
 ${frameNote}
 
 Known symptoms:
@@ -281,8 +292,25 @@ ${JSON.stringify(relevantSymptoms, null, 2)}`,
     })),
   ];
 
+  // Give a large video more time to be inspected, while keeping a hard ceiling
+  // so a stuck upstream request cannot hold a connection forever. Photos and
+  // the checklist path stay on the configured timeout.
+  const sizeMb = req.file.size / (1024 * 1024);
+  const analysisTimeoutMs =
+    kind === 'video'
+      ? Math.max(
+          config.aiTimeoutMs,
+          Math.min(
+            180_000,
+            Math.round(40_000 + sizeMb * 1_200 + base64Frames.length * 5_000)
+          )
+        )
+      : config.aiTimeoutMs;
+
   try {
-    const result = await askAiForJson<MediaAnalysisResult>(SYSTEM_PROMPT, content);
+    const result = await askAiForJson<MediaAnalysisResult>(SYSTEM_PROMPT, content, {
+      timeoutMs: analysisTimeoutMs,
+    });
 
     const knownIds = new Set(relevantSymptoms.map((symptom) => symptom.id));
     const matchedSymptomIds = Array.isArray(result.matchedSymptomIds)
