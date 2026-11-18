@@ -66,9 +66,9 @@ export function SymptomChecklistScreen({ route, navigation }: Props) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          icon="car-outline"
-          title="Vehicle not found"
-          message="Go back to the garage and choose a vehicle."
+          icon="construct-outline"
+          title="Asset not found"
+          message="Go back to the garage and choose a vehicle or machine."
           actionLabel="Back to garage"
           onAction={() => navigation.navigate('Main', { screen: 'Garage' })}
         />

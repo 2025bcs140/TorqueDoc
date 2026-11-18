@@ -1,15 +1,24 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useVehicles } from '../store/VehicleContext';
+import { VehicleType, isMachineType, vehicleTypeLabel } from '../types';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VehicleDetail'>;
+
+const TYPE_ICONS: Record<VehicleType, keyof typeof Ionicons.glyphMap> = {
+  car: 'car-sport-outline',
+  motorcycle: 'bicycle-outline',
+  drilling_machine: 'construct-outline',
+  milling_machine: 'cog-outline',
+  lifting_machine: 'arrow-up-circle-outline',
+};
 
 export function VehicleDetailScreen({ route, navigation }: Props) {
   const { getVehicle, removeVehicle } = useVehicles();
@@ -21,8 +30,8 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          icon="car-outline"
-          title="Vehicle not found"
+          icon="construct-outline"
+          title="Asset not found"
           message="It may have been deleted from another screen."
           actionLabel="Back to garage"
           onAction={() => navigation.navigate('Main', { screen: 'Garage' })}
@@ -32,22 +41,31 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
   }
 
   const title = vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`;
+  const machine = isMachineType(vehicle.type);
+  const assetWord = machine ? 'machine' : vehicle.type === 'motorcycle' ? 'motorcycle' : 'car';
+  const usageLabel = machine ? 'Operating hours' : 'Mileage';
+  const usageValue = `${vehicle.mileage.toLocaleString()} ${machine ? 'hours' : 'mi'}`;
 
   const confirmDelete = () => {
-    Alert.alert(
-      `Delete ${title}?`,
-      'This removes the vehicle and its entire diagnosis history from this device’s backend. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void handleDelete();
-          },
+    const message = `This removes the ${assetWord} and its entire diagnosis history from your account. This cannot be undone.`;
+
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || window.confirm(`Delete ${title}?\n\n${message}`)) {
+        void handleDelete();
+      }
+      return;
+    }
+
+    Alert.alert(`Delete ${title}?`, message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void handleDelete();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleDelete = async () => {
@@ -57,7 +75,7 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
       await removeVehicle(vehicle.id);
       navigation.navigate('Main', { screen: 'Garage' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete the vehicle.');
+      setError(err instanceof Error ? err.message : 'Failed to delete the asset.');
     } finally {
       setDeleting(false);
     }
@@ -65,21 +83,29 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>
-        {vehicle.year} {vehicle.make} {vehicle.model}
-      </Text>
+      <View style={styles.hero}>
+        <View style={styles.heroIcon}>
+          <Ionicons name={TYPE_ICONS[vehicle.type]} size={26} color={colors.accent} />
+        </View>
+        <View style={styles.heroCopy}>
+          <Text style={styles.eyebrow}>{vehicleTypeLabel(vehicle.type).toUpperCase()}</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>
+            {vehicle.year} {vehicle.make} {vehicle.model}
+          </Text>
+        </View>
+      </View>
 
       <View style={styles.specCard}>
         <Spec
-          icon={vehicle.type === 'car' ? 'car-sport-outline' : 'bicycle-outline'}
+          icon={TYPE_ICONS[vehicle.type]}
           label="Type"
-          value={vehicle.type === 'car' ? 'Car' : 'Motorcycle'}
+          value={vehicleTypeLabel(vehicle.type)}
         />
         <Spec
-          icon="speedometer-outline"
-          label="Mileage"
-          value={`${vehicle.mileage.toLocaleString()} mi`}
+          icon={machine ? 'timer-outline' : 'speedometer-outline'}
+          label={usageLabel}
+          value={usageValue}
         />
         <Spec
           icon="calendar-outline"
@@ -101,29 +127,33 @@ export function VehicleDetailScreen({ route, navigation }: Props) {
       <ActionRow
         icon="book-outline"
         label="Repair library"
-        sublabel="Browse guides for this vehicle type"
+        sublabel={`Browse guides for ${machine ? 'this machine' : `this ${assetWord}`}`}
         onPress={() => navigation.navigate('Main', { screen: 'Library' })}
       />
       <ActionRow
         icon="time-outline"
         label="Diagnosis history"
-        sublabel="Past checks for this vehicle"
+        sublabel={`Past checks for this ${assetWord}`}
         onPress={() => navigation.navigate('History', { vehicleId: vehicle.id })}
       />
       <ActionRow
         icon="create-outline"
-        label="Edit vehicle details"
-        sublabel="Update the nickname, year or current mileage"
+        label="Edit asset details"
+        sublabel={
+          machine
+            ? 'Update the nickname, year or operating hours'
+            : 'Update the nickname, year or current mileage'
+        }
         onPress={() => navigation.navigate('AddVehicle', { vehicleId: vehicle.id })}
       />
 
       <View style={styles.dangerZone}>
         <Text style={styles.dangerLabel}>Danger zone</Text>
         <Text style={styles.dangerText}>
-          Deleting a vehicle also deletes every diagnosis stored for it.
+          Deleting this {assetWord} also deletes every diagnosis stored for it.
         </Text>
         <PrimaryButton
-          label="Delete vehicle"
+          label={machine ? 'Delete machine' : 'Delete vehicle'}
           onPress={confirmDelete}
           loading={deleting}
           variant="danger"
@@ -143,7 +173,7 @@ function Spec(props: {
   return (
     <View style={styles.spec}>
       <Ionicons name={props.icon} size={18} color={colors.accent} />
-      <View>
+      <View style={styles.specCopy}>
         <Text style={styles.specLabel}>{props.label}</Text>
         <Text style={styles.specValue}>{props.value}</Text>
       </View>
@@ -184,15 +214,42 @@ const styles = StyleSheet.create({
     padding: spacing(4),
     paddingBottom: spacing(10),
   },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(4),
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing(4),
+    marginBottom: spacing(4),
+  },
+  heroIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: radii.md,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCopy: {
+    flex: 1,
+  },
+  eyebrow: {
+    ...typography.eyebrow,
+    color: colors.accent,
+    fontSize: 9,
+  },
   title: {
-    ...typography.display,
+    ...typography.heading,
     color: colors.textPrimary,
+    marginTop: 2,
   },
   subtitle: {
-    ...typography.body,
+    ...typography.caption,
     color: colors.textSecondary,
-    marginTop: spacing(1),
-    marginBottom: spacing(5),
+    marginTop: 2,
   },
   specCard: {
     flexDirection: 'row',
@@ -210,6 +267,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing(2),
     minWidth: 110,
+  },
+  specCopy: {
+    flexShrink: 1,
   },
   specLabel: {
     ...typography.caption,

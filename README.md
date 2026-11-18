@@ -1,9 +1,10 @@
 # TorqueDoc
 
-A private vehicle diagnostic and repair assistant for cars and motorcycles.
-Sign in, save your vehicles, then describe a problem with a checklist, your own
-words, a photo/video, or a recorded sound. TorqueDoc returns ranked probable
-causes and step-by-step repair guides.
+A private diagnostic and repair assistant for cars, motorcycles and workshop
+machines (drilling, milling and lifting equipment). Sign in, save your assets,
+then describe a problem with a checklist, your own words, a photo/video, or a
+recorded sound. TorqueDoc returns ranked probable causes and step-by-step
+repair guides.
 
 Trailers are intentionally out of scope: they don't have an engine to diagnose
 in this sense and would need a different inspection-checklist product.
@@ -11,7 +12,7 @@ in this sense and would need a different inspection-checklist product.
 ```
 ┌─────────────────────────────┐        HTTP/JSON        ┌──────────────────────────────┐
 │  app/ — Expo / React Native │  ────────────────────▶  │  backend/ — Express 5        │
-│  Auth · Garage · Diagnose   │  ◀────────────────────  │  SQLite · rule engine · AI   │
+│  Auth · Garage · Diagnose   │  ◀────────────────────  │  Postgres/SQLite · rules · AI│
 └─────────────────────────────┘                         └──────────────┬───────────────┘
                                                                          │
                                                       ┌──────────────────┴─────────────────┐
@@ -29,7 +30,12 @@ database, account sessions, diagnosis rules, and all AI calls.
 - **Accounts** — email/password sign-up and sign-in. Each account has a private
   garage and private diagnosis history. Passwords are hashed with scrypt on the
   server; the app stores only an opaque 30-day session token.
-- **Garage** — add, edit and delete cars and motorcycles; mileage is editable.
+- **Garage** — add, edit and delete cars, motorcycles, drilling machines,
+  milling machines and lifting machines. Cars and motorcycles use mileage;
+  workshop machines use operating hours. The add form offers live NHTSA vPIC
+  car/motorcycle makes and models, a curated fallback, and manual entry.
+- **Profile** — account identity, status, diagnosis totals, recent/ongoing
+  activity, saved assets, referral sharing, storage/provider details and sign-out.
 - **Five diagnosis inputs**:
   - **Symptom checklist** — deterministic, explainable, no AI.
   - **Describe it in words** — Workers AI maps free text onto the fixed symptom
@@ -40,17 +46,17 @@ database, account sessions, diagnosis rules, and all AI calls.
     inspects them. The video soundtrack is not analyzed on this path.
   - **Recorded sound** — ffmpeg normalizes a 30-second clip to mono 16 kHz WAV;
     Cloudflare `clef-omni` classifies the dominant sound pattern. Genuine
-    matches (brake squeal, brake grind, rough idle, starter click, exhaust rasp,
-    chain slap) feed the rule engine. Engine knock, ticking, belt squeal and
-    cooling hiss are reported honestly as findings without inventing a catalog
-    diagnosis.
+    matches for road vehicles (brake squeal, brake grind, rough idle, starter
+    click, exhaust rasp, chain slap) and machines (spindle rattle, bearing
+    whine, hydraulic hiss, motor noise) feed the rule engine. Other findings are
+    reported honestly without inventing a catalog diagnosis.
 - **Ranked causes** — each result shows severity, the share of that cause's
   known signs you supplied, and exactly which signs matched. The number is
   coverage, not a black-box probability.
 - **Repair guides** — tools, realistic time estimate, difficulty, numbered
   steps with a local step-progress checklist.
-- **History** — every run against a saved vehicle is persisted and can be
-  reopened later. Deleting a vehicle deletes its history.
+- **History** — every run against a saved asset is persisted and can be
+  reopened later. Deleting an asset deletes its history.
 - **OBD-II Bluetooth** — deliberately a disabled placeholder; see Roadmap.
 
 Audio analysis is a **sound-pattern match**, not a confirmed mechanical
@@ -64,7 +70,7 @@ intended for engine, brake, chain, exhaust, belt and cooling noises.
 | Mobile | Expo SDK 54, React Native 0.81, TypeScript | Expo Go on the public app stores runs SDK 54; this project is pinned to it so a QR-code scan works. |
 | Navigation | React Navigation 7 (native stack + tabs) | Small, typed, no file-based routing magic. |
 | API | Express 5 + TypeScript | Boring, well understood, and Express 5 forwards async errors automatically. |
-| Database | Node's built-in `node:sqlite` | No native binary to download at install time. Requires **Node 22.5+**. |
+| Database | Neon Postgres in production; `node:sqlite` locally | Neon's free plan is durable with no 30-day expiry. SQLite keeps local setup and tests zero-config. Requires **Node 22.5+**. |
 | Auth | scrypt password hashes + SHA-256 session hashes | No extra native dependency; raw passwords and session tokens are never stored. |
 | AI | Cloudflare Workers AI via `fetch` | Free-tier eligible, no SDK dependency, server-side key only, zero-retention model options. Cloudflare is the primary provider; Anthropic remains an optional paid legacy fallback for text/vision only and is not used by the free deployment. |
 | Audio | Cloudflare `@cf/cloudflare/clef-omni` | Typed sound-pattern probabilities, free-tier eligible, roughly 780 tokens per audio minute, zero retention. |
@@ -94,7 +100,8 @@ npx expo start
 ```
 
 Then scan the QR code with Expo Go, or press `i` / `a` for a simulator. Create an
-account on the welcome screen. New accounts get two deletable example vehicles.
+account on the welcome screen. New accounts get deletable example vehicles and
+machines so the garage, checklists and guides can be explored immediately.
 
 ### Why the LAN IP, not localhost?
 
@@ -123,18 +130,21 @@ Backend (`backend/.env`):
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3000` | API port. |
-| `DB_PATH` | `./torquedoc.db` | SQLite file. Relative paths resolve from `backend/`. |
+| `DATABASE_URL` | — | Postgres/Neon pooled connection string. When set, it replaces SQLite for durable hosted storage. |
+| `DB_PATH` | `./torquedoc.db` | SQLite fallback when `DATABASE_URL` is unset. Relative paths resolve from `backend/`. |
 | `CLOUDFLARE_ACCOUNT_ID` | — | Enables Workers AI when paired with a token. |
 | `CLOUDFLARE_API_TOKEN` | — | Server-side Workers AI token. Never sent to the app. |
 | `CLOUDFLARE_MODEL` | Mistral Small 3.1 | Text/vision model. |
 | `CLOUDFLARE_VISION_MODEL` | same as model | Optional separate vision model. |
 | `CLOUDFLARE_AUDIO_MODEL` | `@cf/cloudflare/clef-omni` | Audio sound-pattern model. |
-| `AI_TIMEOUT_MS` | `60000` | AI request timeout. |
-| `MAX_UPLOAD_MB` | `30` | Overall photo/video/audio upload limit; photos are capped at 5 MB by the vision API. |
+| `AI_TIMEOUT_MS` | `60000` | Base AI request timeout (max 180000). Large video analysis scales toward the ceiling. |
+| `MAX_UPLOAD_MB` | `100` | Overall upload ceiling. Photos are capped at 5 MB, audio at 20 MB. |
+| `MAX_VIDEO_MB` | `80` | Video upload limit. The app records up to 60 seconds and scales its own timeout with file size/duration. |
 | `API_ACCESS_TOKEN` | — | Shared abuse-gate key required for login/register and all API routes when set. Not a replacement for user sessions. |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | `12` | Register/login attempts per IP per minute. |
 | `RATE_LIMIT_PER_MINUTE` | `240` | General requests per IP per minute. |
 | `AI_RATE_LIMIT_PER_MINUTE` | `10` | AI requests per IP per minute. |
+| `PUBLIC_APP_URL` | — | Public origin used to build referral links. Defaults to the request origin. |
 | `CORS_ORIGIN` | `*` | `*` or a comma-separated origin allow-list. |
 | `LOG_REQUESTS` | `true` | One-line request log. |
 | `TRUST_PROXY` | `false` | Set true behind Render/Railway so rate limits see the real IP. |
@@ -164,11 +174,14 @@ PATCH  /vehicles/:id            (session)
 DELETE /vehicles/:id            (session)
 GET    /vehicles/:id/history    (session)
 
-GET    /symptoms?vehicleType=car|motorcycle        (session)
-GET    /repair-guides?vehicleType=car|motorcycle   (session)
-GET    /repair-guides/:id                          (session)
-GET    /catalog                                    (session)
-POST   /diagnose                                   (session)
+GET    /vehicle-catalog/makes?type=...             (session)
+GET    /vehicle-catalog/models?type=...&make=...&year=...
+GET    /symptoms?vehicleType=...                    (session)
+GET    /repair-guides?vehicleType=...               (session)
+GET    /repair-guides/:id                           (session)
+GET    /catalog                                     (session)
+GET    /profile                                     (session)
+POST   /diagnose                                    (session)
 GET    /diagnoses/:id                              (session)
 
 POST   /v1/symptoms/interpret   (session + AI)
@@ -183,6 +196,18 @@ Send the account session as `Authorization: Bearer <opaque-token>`. When
 The AI endpoints return `503 AI_NOT_CONFIGURED` when no valid provider key is
 set. Video and audio analysis report `503 FFMPEG_NOT_FOUND` when ffmpeg is
 missing. An unreadable audio clip returns `422 AUDIO_UNREADABLE`.
+
+## Documentation
+
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — signing in, assets, diagnosis
+  modes, history, profile, dashboard, limits and troubleshooting.
+- [`docs/API.md`](docs/API.md) — endpoints, payloads, errors and media details.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — storage, security, diagnosis
+  engine and trade-offs.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Render + Neon setup, Cloudflare AI
+  configuration, hosted web build and verification.
+- [`app/README.md`](app/README.md) — Expo client setup, screens, permissions and
+  troubleshooting.
 
 ## How the diagnosis engine works
 
@@ -226,7 +251,7 @@ Anthropic credits for this deployment.
 ```bash
 cd backend
 npm run typecheck
-npm test          # 47 tests: engine, catalog integrity, auth, audio mapping, API
+npm test          # 51 tests: engine, catalog integrity, auth, audio mapping, API
 ```
 
 ```bash
@@ -262,9 +287,20 @@ The public deployment serves the app at `/app`, an account dashboard at
 - Dashboard: `https://torquedoc-api.onrender.com/dashboard`
 - Health: `https://torquedoc-api.onrender.com/health`
 
-Render's free filesystem is ephemeral. A redeploy can reset accounts, garages
-and history. For persistent production use, point `DB_PATH` at a mounted disk or
-move the database to a managed SQLite/Postgres service.
+Render's free filesystem is ephemeral, so hosted accounts, garages and history
+are stored in a free Neon Postgres database:
+
+1. Create a Neon project at <https://neon.tech> (free plan, no card, no 30-day
+   database expiry) and copy its **pooled** connection string.
+2. In Render's environment settings for `torquedoc-api`, add `DATABASE_URL`
+   with the pooled value, including `?sslmode=require`.
+3. Redeploy. `/health` reports `"database": { "provider": "postgres" }`. Sign in
+   or register, add an asset, run a check, then restart/redeploy the service and
+   confirm the garage and history are still present.
+
+`render.yaml` declares `DATABASE_URL` as a secret, so the value is entered in
+the Render dashboard rather than committed. The local backend and tests keep
+using SQLite automatically when `DATABASE_URL` is unset.
 
 ## Troubleshooting
 
@@ -280,8 +316,10 @@ runs. Force-close and update Expo Go, then confirm `app/package.json` still has
 supports.
 
 **Sign-in returns 401**
-Check the email/password and remember that sessions expire after 30 days. The
-account is stored in the backend's SQLite file; a Render redeploy may reset it.
+Check the email/password and remember that sessions expire after 30 days. On the
+hosted service, confirm `DATABASE_URL` points at the intended Neon database and
+that `/health` reports the Postgres provider. Without it, Render's ephemeral
+SQLite file can be reset by a restart or redeploy.
 
 **Audio/video analysis returns 503 `FFMPEG_NOT_FOUND`**
 Install ffmpeg and make sure both `ffmpeg` and `ffprobe` are on `PATH`
@@ -328,7 +366,8 @@ devDependency so npm hoists one shared copy.
   symptom ids and cause labels, not the media.
 - AI calls only happen when the user chooses an AI-assisted option. Checklist
   answers never go to an AI provider; they only reach the deterministic engine.
-- The SQLite database and `.env` files are gitignored.
+- The local SQLite database and `.env` files are gitignored. Hosted Postgres
+  credentials are server-side Render secrets and are never bundled into the app.
 
 ## Project layout
 
@@ -352,7 +391,7 @@ TorqueDoc/
 │   └── src/
 │       ├── components/            cards, checklist, buttons, empty/error states
 │       ├── navigation/            typed param lists + navigator
-│       ├── screens/               auth, garage, diagnose, audio/photo/video, history
+│       ├── screens/               auth, garage, profile, diagnose, audio/photo/video, history
 │       ├── services/              API areas, auth token/storage, media upload
 │       ├── store/                 auth and vehicle contexts
 │       ├── theme/                 palette, gradients, type scale
@@ -360,7 +399,8 @@ TorqueDoc/
 ├── docs/
 │   ├── API.md                     endpoint reference
 │   ├── ARCHITECTURE.md            design decisions and data flow
-│   └── DEPLOYMENT.md              deployment notes
+│   ├── DEPLOYMENT.md              Render, Neon and Cloudflare deployment
+│   └── USER_GUIDE.md              end-user walkthrough and troubleshooting
 ├── README.md
 └── .gitignore
 ```

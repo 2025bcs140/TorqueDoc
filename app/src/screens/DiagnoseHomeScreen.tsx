@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useVehicles } from '../store/VehicleContext';
+import { VehicleType, isMachineType, vehicleTypeLabel } from '../types';
 import { EmptyState } from '../components/EmptyState';
 import {
   colors,
@@ -17,6 +18,14 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DiagnoseHome'>;
 
+const TYPE_ICONS: Record<VehicleType, keyof typeof Ionicons.glyphMap> = {
+  car: 'car-sport',
+  motorcycle: 'bicycle',
+  drilling_machine: 'construct',
+  milling_machine: 'cog',
+  lifting_machine: 'arrow-up-circle',
+};
+
 export function DiagnoseHomeScreen({ route, navigation }: Props) {
   const { vehicleId } = route.params;
   const { getVehicle } = useVehicles();
@@ -26,9 +35,9 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          icon="car-outline"
-          title="Vehicle not found"
-          message="Go back to the garage and choose a vehicle to diagnose."
+          icon="construct-outline"
+          title="Asset not found"
+          message="Go back to the garage and choose a car, motorcycle or machine to diagnose."
           actionLabel="Back to garage"
           onAction={() => navigation.navigate('Main', { screen: 'Garage' })}
         />
@@ -37,6 +46,9 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
   }
 
   const title = vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`;
+  const machine = isMachineType(vehicle.type);
+  const usage = `${vehicle.mileage.toLocaleString()} ${machine ? 'hours' : 'mi'}`;
+  const assetWord = machine ? 'machine' : vehicle.type === 'motorcycle' ? 'motorcycle' : 'vehicle';
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -49,11 +61,7 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
         <View pointerEvents="none" style={styles.vehicleOrb} />
         <View style={styles.vehicleTop}>
           <LinearGradient colors={gradients.icon} style={styles.vehicleIcon}>
-            <Ionicons
-              name={vehicle.type === 'car' ? 'car-sport' : 'bicycle'}
-              size={22}
-              color={colors.accent}
-            />
+            <Ionicons name={TYPE_ICONS[vehicle.type]} size={22} color={colors.accent} />
           </LinearGradient>
           <View style={styles.vehicleText}>
             <Text style={styles.eyebrow}>DIAGNOSING</Text>
@@ -61,23 +69,23 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
               {title}
             </Text>
           </View>
-          <Text style={styles.typeTag}>{vehicle.type === 'car' ? 'CAR' : 'MOTO'}</Text>
+          <Text style={styles.typeTag}>{vehicleTypeLabel(vehicle.type, true).toUpperCase()}</Text>
         </View>
         <Text style={styles.vehicleMeta}>
-          {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.mileage.toLocaleString()} mi
+          {vehicle.year} {vehicle.make} {vehicle.model} / {usage}
         </Text>
       </LinearGradient>
 
       <Text style={styles.title}>How do you want to describe the problem?</Text>
       <Text style={styles.subtitle}>
         Start with the checklist for the fastest answer, or let AI interpret a description,
-        photo, video or sound.
+        photo, video or sound from your {assetWord}.
       </Text>
 
       <Option
         icon="list-outline"
         label="Symptom checklist"
-        sublabel="Tap what you're noticing — fastest, and no AI involved"
+        sublabel="Tap what you're noticing - fastest, and no AI involved"
         onPress={() => navigation.navigate('SymptomChecklist', { vehicleId })}
         accent={colors.success}
         badge="FASTEST"
@@ -85,19 +93,27 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
       <Option
         icon="chatbubble-ellipses-outline"
         label="Describe it in your own words"
-        sublabel="AI-assisted — turns free text into matching symptoms"
+        sublabel="AI-assisted - turns free text into matching symptoms"
         onPress={() => navigation.navigate('FreeTextSymptom', { vehicleId })}
       />
       <Option
         icon="camera-outline"
-        label="Take a photo or video"
-        sublabel="AI-assisted — for leaks, warning lights, worn parts or smoke"
+        label={machine ? 'Take a photo or video' : 'Take a photo or video'}
+        sublabel={
+          machine
+            ? 'AI-assisted - for worn tooling, leaks, damage, smoke or warning lights'
+            : 'AI-assisted - for leaks, warning lights, worn parts or smoke'
+        }
         onPress={() => navigation.navigate('CameraCapture', { vehicleId })}
       />
       <Option
         icon="mic-outline"
         label="Record a sound"
-        sublabel="AI-assisted — engine knock, brake squeal, chain slap or exhaust noise"
+        sublabel={
+          machine
+            ? 'AI-assisted - spindle rattle, bearing whine, hydraulic hiss or motor noise'
+            : 'AI-assisted - engine knock, brake squeal, chain slap or exhaust noise'
+        }
         onPress={() => navigation.navigate('AudioCapture', { vehicleId })}
         accent={colors.cyan}
         badge="NEW"
@@ -105,7 +121,11 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
       <Option
         icon="bluetooth-outline"
         label="Connect an OBD-II reader"
-        sublabel="Coming soon — live fault codes over Bluetooth"
+        sublabel={
+          machine
+            ? 'Not available for workshop machines'
+            : 'Coming soon - live fault codes over Bluetooth'
+        }
         onPress={() => undefined}
         disabled
       />
@@ -115,7 +135,8 @@ export function DiagnoseHomeScreen({ route, navigation }: Props) {
         <Text style={styles.privacyText}>
           AI options send only the content you choose to Cloudflare Workers AI through this
           backend. Cloudflare does not train on or retain it, the API token stays server-side, and
-          uploaded media is not stored after the request. Checklist answers never go to an AI provider.
+          uploaded media is not stored after the request. Checklist answers never go to an AI
+          provider.
         </Text>
       </View>
     </ScrollView>

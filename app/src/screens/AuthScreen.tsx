@@ -101,14 +101,15 @@ export function AuthScreen() {
 
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>DIAGNOSE WITH CONFIDENCE</Text>
-            <Text style={styles.heroTitle}>Know what your vehicle is telling you.</Text>
+            <Text style={styles.heroTitle}>Know what your vehicle or machine is telling you.</Text>
             <Text style={styles.heroText}>
-              A private garage, a mechanic’s checklist, and AI-assisted photo, video and sound
-              analysis — all in one place.
+              A private garage for cars, motorcycles and workshop machines, with a mechanic’s
+              checklist and AI-assisted photo, video and sound analysis.
             </Text>
 
             <View style={styles.featureRow}>
               <Feature icon="car-sport-outline" label="Cars & bikes" />
+              <Feature icon="construct-outline" label="Workshop machines" />
               <Feature icon="mic-outline" label="Sound analysis" />
               <Feature icon="lock-closed-outline" label="Private garage" />
             </View>
@@ -227,7 +228,7 @@ export function AuthScreen() {
             </View>
           </View>
 
-          <Text style={styles.footer}>Cars and motorcycles only · Built for the garage</Text>
+          <Text style={styles.footer}>Cars · Motorcycles · Workshop machines</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>

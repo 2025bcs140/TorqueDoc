@@ -40,6 +40,12 @@ const DEFAULT_TIMEOUT_MS = 75_000;
 /** AI calls legitimately take longer than a normal CRUD request. */
 export const AI_TIMEOUT_MS = 90_000;
 
+/**
+ * Large videos can take longer to upload and sample. The backend caps its own
+ * video analysis at 180 seconds; allow a little network overhead on top.
+ */
+export const MAX_AI_TIMEOUT_MS = 200_000;
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
@@ -82,7 +88,7 @@ function assertValidBaseUrl(): void {
 }
 
 export interface ApiFetchOptions {
-  /** Override the default 20s timeout (AI endpoints use 90s). */
+  /** Override the default 75s timeout (AI media calls scale up to 200s). */
   timeoutMs?: number;
 }
 

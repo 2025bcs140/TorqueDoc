@@ -118,6 +118,12 @@ export function createApp(): express.Express {
       res.setHeader('Cache-Control', 'no-store');
       res.type('html').send(html);
     });
+  } else {
+    // Keep the missing build a clear 404 instead of letting the API access
+    // guard turn it into a misleading 401 when API_ACCESS_TOKEN is configured.
+    app.get(['/app', '/app/'], (_req, res) => {
+      res.status(404).type('text').send('TorqueDoc web app is not built. Run `npm run build:web` from app/.');
+    });
   }
 
   /**

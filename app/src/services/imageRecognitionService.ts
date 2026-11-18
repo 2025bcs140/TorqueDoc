@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { AI_TIMEOUT_MS, apiFetch } from './apiClient';
+import { AI_TIMEOUT_MS, MAX_AI_TIMEOUT_MS, apiFetch } from './apiClient';
 import { VehicleType } from '../types';
 
 export type MediaKind = 'photo' | 'video' | 'audio';
@@ -16,6 +16,10 @@ export interface MediaAsset {
   /** From expo-image-picker's asset; used so HEIC/QuickTime are labelled correctly. */
   mimeType?: string;
   fileName?: string;
+  /** Size in bytes when the picker provides it. */
+  size?: number;
+  /** Video/audio duration in milliseconds when known. */
+  durationMs?: number;
   /** expo-image-picker provides the browser File on web. */
   file?: File;
 }
@@ -25,6 +29,18 @@ const FALLBACKS: Record<MediaKind, { name: string; type: string }> = {
   video: { name: 'capture.mp4', type: 'video/mp4' },
   audio: { name: 'recording.m4a', type: 'audio/m4a' },
 };
+
+/**
+ * Upload plus server-side frame sampling grows with the file. Keep a generous
+ * floor for cold Render instances and cap below the backend's 180s AI ceiling
+ * plus network overhead.
+ */
+function mediaTimeoutMs(asset: MediaAsset): number {
+  const sizeMb = (asset.size ?? asset.file?.size ?? 0) / (1024 * 1024);
+  const durationSeconds = (asset.durationMs ?? 0) / 1_000;
+  const estimate = AI_TIMEOUT_MS + sizeMb * 1_100 + durationSeconds * 450;
+  return Math.min(MAX_AI_TIMEOUT_MS, Math.max(AI_TIMEOUT_MS, Math.round(estimate)));
+}
 
 /**
  * Uploads a captured photo, short video, or sound clip for analysis. Video
@@ -78,6 +94,6 @@ export async function analyzeVehicleMedia(
   return apiFetch<MediaAnalysisResult>(
     '/v1/media/analyze',
     { method: 'POST', body: form },
-    { timeoutMs: AI_TIMEOUT_MS }
+    { timeoutMs: mediaTimeoutMs(asset) }
   );
 }

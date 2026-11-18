@@ -72,7 +72,8 @@ instructions and [`../docs/API.md`](../docs/API.md) for the auth endpoints.
 
 A free Render instance sleeps after inactivity, so the first request can take
 50 seconds or more. Normal requests wait up to 75 seconds; AI requests wait up
-to 90 seconds. A paid instance or a host without spin-down removes that delay.
+to 200 seconds, scaled by media size and duration. A paid instance or a host
+without spin-down removes that delay.
 
 ## Accounts and private data
 
@@ -81,7 +82,7 @@ display name, email and password (8–200 characters). Registering returns an
 opaque session token that is stored in AsyncStorage (`torquedoc.session.v1`).
 Passwords are typed only on the auth screen and are never stored by the app.
 
-- Each account has its own garage and diagnosis history.
+- Each account has its own garage, profile activity and diagnosis history.
 - New accounts receive two deletable example vehicles.
 - Sessions last 30 days. A `401` clears the local session and returns to
   sign-in.
@@ -100,17 +101,18 @@ migration-inherited rows on startup.
 | Screen | Purpose |
 |---|---|
 | **Auth** | Gradient sign-in / create-account screen with validation and a session boot state. |
-| **Garage** (tab) | Private vehicle list, add button, pull-to-refresh, empty/error states. |
-| **Repair library** (tab) | All guides, filter by car/motorcycle, search titles and tools. |
-| **Add / edit vehicle** | One form for both modes; per-field validation; edit prefilled. |
-| **Vehicle detail** | Specs, entry points to diagnose/library/history, edit and delete (with confirmation). |
+| **Garage** (tab) | Private car, motorcycle and workshop-machine list, add button, pull-to-refresh, empty/error states. |
+| **Profile** (tab) | Identity, status, stats, latest/recent activity, referral link, storage details and sign-out. |
+| **Repair library** (tab) | All guides, filter by asset type, search titles and tools. |
+| **Add / edit asset** | One form for five types; live NHTSA car/motorcycle make/model catalog with fallback and manual entry; machine operating hours. |
+| **Asset detail** | Specs, entry points to diagnose/library/history, edit and delete (with confirmation). |
 | **Diagnose home** | Checklist, free text, photo/video, recorded sound, or the disabled OBD placeholder. |
 | **Symptom checklist** | Grouped checkboxes, selected count, clear, retry. |
 | **Free text** | Prompt, character counter, examples, AI interpretation, then the same rule engine. |
 | **Camera capture** | Camera or library, photo or video, preview, size guard, analysis. |
 | **Audio capture** | Record up to 30 s or pick an audio file, add a context hint, analyze, show findings. |
 | **Diagnosis result** | Ranked prescription cards, matched signs, severity, AI summary, safety note. |
-| **History** | Saved runs for a vehicle, top causes, source, date; opens detail. |
+| **History** | Saved runs for an asset, top causes, source, date; opens detail. |
 | **History detail** | Full saved matches, refetched by id from `/diagnoses/:id`. |
 | **Repair guide detail** | Metadata, tools, safety note, numbered steps with local progress checkboxes. |
 
@@ -152,7 +154,7 @@ src/
   navigation/
     AppNavigator.tsx        stack + bottom tabs, auth switch
     types.ts                typed route params
-  screens/                  one screen per file, including AuthScreen and AudioCaptureScreen
+  screens/                  one screen per file, including AuthScreen, ProfileScreen and AudioCaptureScreen
   services/
     apiClient.ts            base URL, timeout, bearer/shared-key headers, errors
     authStorage.ts          AsyncStorage session token/user
@@ -160,6 +162,7 @@ src/
     vehicleService.ts
     catalogService.ts
     diagnosisService.ts
+    profileService.ts          account stats, activity and referral data
     aiSymptomService.ts
     imageRecognitionService.ts  photo/video/audio multipart upload
   store/
@@ -214,7 +217,7 @@ problem when it did not.
 | Kind | App source | Limits | What happens |
 |---|---|---|---|
 | Photo | Camera or library (`expo-image-picker`) | JPEG/PNG/WebP/GIF, 5 MB | Sent to the vision model as an image. |
-| Video | Camera or library (`expo-image-picker`) | MP4/MOV/WebM/AVI/3GP/MKV, 30 MB upload; at most 15 s recorded | Backend extracts up to three frames with ffmpeg. |
+| Video | Camera or library (`expo-image-picker`) | MP4/MOV/WebM/AVI/3GP/MKV, 80 MB upload; at most 60 s recorded | Backend extracts up to three frames with ffmpeg. |
 | Sound | Microphone (`expo-audio`) or file picker (`expo-document-picker`) | MP3/WAV/M4A/AAC/OGG/Opus/WebM, 20 MB, trimmed to 30 s | Backend transcodes to mono 16 kHz WAV and sends typed questions to `clef-omni`. |
 
 The sound screen supports a context hint (`At idle`, `When revving`,
@@ -239,7 +242,7 @@ permission strings and native assets in sync. Expo Go uses its own host-app
 permissions; a standalone build needs a rebuild after changing them.
 
 Camera, library and microphone denials show an explanation with an “Open
-settings” action where available. Photos over 5 MB, videos over 30 MB and audio
+settings" action where available. Photos over 5 MB, videos over 80 MB and audio
 over 20 MB are refused before uploading; the backend enforces every limit
 independently.
 
@@ -252,9 +255,9 @@ transcribed or listened to on the photo/video path.
 For sound, ffmpeg transcodes and trims the clip, then Cloudflare
 `@cf/cloudflare/clef-omni` answers typed sound-pattern questions. Only genuine
 catalog sounds (brake squeal/grind, rough idle, starter click, exhaust rasp,
-chain slap) feed the deterministic engine. Engine knock, ticking, belt squeal and
-cooling hiss are reported as findings with a safety-oriented note rather than a
-forced cause.
+chain slap, spindle rattle, bearing whine, hydraulic hiss, motor noise) feed the
+deterministic engine. Other findings are reported with a safety-oriented note
+rather than a forced cause.
 
 If ffmpeg is not installed, photos still work and video/audio return a clear
 `FFMPEG_NOT_FOUND` message from the backend. If Cloudflare credentials are
@@ -335,8 +338,9 @@ the camera resolution; this cap is independent of `MAX_UPLOAD_MB`.
 
 **Video or audio upload fails at the size limit**
 Record a shorter clip or lower the resolution. The video ceiling is
-`MAX_UPLOAD_MB` (30 MB) and is mirrored in `CameraCaptureScreen.tsx`; audio is
-capped at 20 MB and 30 seconds. Keep the app and backend limits in sync.
+`MAX_VIDEO_MB` (80 MB, inside the 100 MB global upload limit) and is mirrored in
+`CameraCaptureScreen.tsx`; audio is capped at 20 MB and 30 seconds. Keep the app
+and backend limits in sync.
 
 **AI features say not configured**
 That comes from the backend (`503 AI_NOT_CONFIGURED`). Add

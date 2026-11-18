@@ -42,7 +42,8 @@ Every error response has the same shape:
 | 404 | `NOT_FOUND` | No route, vehicle, guide or diagnosis with that id, or it belongs to another account. |
 | 409 | `EMAIL_TAKEN` | Registration email already exists (case-insensitive). |
 | 429 | `RATE_LIMITED` | Per-IP request, auth or AI rate limit exceeded. Check `Retry-After`. |
-| 413 | `FILE_TOO_LARGE` | Upload exceeds `MAX_UPLOAD_MB` (default 30 MB). |
+| 413 | `FILE_TOO_LARGE` | Upload exceeds `MAX_UPLOAD_MB` (default 100 MB). |
+| 413 | `VIDEO_TOO_LARGE` | Video exceeds `MAX_VIDEO_MB` (default 80 MB). |
 | 413 | `PHOTO_TOO_LARGE` | Photo exceeds the vision API's 5 MB per-image limit. |
 | 413 | `AUDIO_TOO_LARGE` | Audio exceeds the 20 MB audio limit. |
 | 413 | `PAYLOAD_TOO_LARGE` | JSON body exceeds 1 MB. |
@@ -275,7 +276,7 @@ not rewrite past records.
 
 ## Catalog
 
-### `GET /symptoms?vehicleType=car|motorcycle`
+### `GET /symptoms?vehicleType=car|motorcycle|drilling_machine|milling_machine|lifting_machine`
 
 `vehicleType` is required.
 
@@ -294,9 +295,10 @@ not rewrite past records.
 ```
 
 Categories: `engine`, `starting_charging`, `brakes`, `cooling`, `exhaust`,
-`drive_chain_clutch`.
+`drive_chain_clutch`, `spindle_drive`, `lubrication_coolant`, `hydraulics`,
+`controls_electrical`, `structure_safety`.
 
-### `GET /repair-guides?vehicleType=car|motorcycle`
+### `GET /repair-guides?vehicleType=car|motorcycle|drilling_machine|milling_machine|lifting_machine`
 
 ```json
 {
@@ -320,6 +322,22 @@ Categories: `engine`, `starting_charging`, `brakes`, `cooling`, `exhaust`,
 ```json
 { "repairGuide": { /* RepairGuide */ } }
 ```
+
+### `GET /vehicle-catalog/makes?type=...`
+
+Returns live NHTSA vPIC makes for cars and motorcycles, with a curated fallback
+when the upstream service is unavailable. Workshop machine types return the
+curated machine-maker catalog.
+
+### `GET /vehicle-catalog/models?type=...&make=...&year=...`
+
+Returns live NHTSA vPIC models for the make/year, or the curated fallback.
+
+### `GET /profile`
+
+Returns the signed-in account's display name, status, asset/diagnosis totals,
+latest/recent activity, referral code/link and storage provider. Referral codes
+are derived from the account id and are not a separate secret.
 
 ### `GET /catalog`
 
@@ -447,7 +465,7 @@ with the returned ids, which keeps the ranking deterministic and auditable.
 
 | Field | Value |
 |---|---|
-| `vehicleType` | `car` or `motorcycle` |
+| `vehicleType` | `car`, `motorcycle`, `drilling_machine`, `milling_machine` or `lifting_machine` |
 | `kind` | `photo`, `video` or `audio` |
 | `file` | The image, video or audio file |
 | `context` | Optional audio hint: `At idle`, `When revving`, `When braking`, `When turning`, `When starting`, `Not sure` |
@@ -455,15 +473,18 @@ with the returned ids, which keeps the ranking deterministic and auditable.
 Photos: JPEG, PNG, WebP or GIF, up to 5 MB each (the vision API's per-image
 limit). Videos: MP4, MOV, WebM, AVI, 3GP or MKV; the backend extracts up to three
 JPEG frames with ffmpeg. The overall multipart upload limit is `MAX_UPLOAD_MB`
-(30 by default). For videos, the app records at most 15 seconds.
+(100 by default) and videos have a tighter `MAX_VIDEO_MB` ceiling (80 by
+default). For videos, the app records at most 60 seconds and scales its request
+timeout with file size and duration.
 
 Audio: MP3, WAV, M4A/AAC, OGG/Opus or WebM, up to 20 MB. ffmpeg transcodes the
 clip to mono 16 kHz 16-bit WAV and trims it to 30 seconds before sending it to
 `clef-omni`. The model returns typed sound probabilities; only genuine catalog
 sounds (brake squeal, brake grind, rough idle, starter click, exhaust rasp,
-chain slap) become `matchedSymptomIds`. Engine knock, ticking, belt squeal and
-cooling hiss are returned in `detectedLabels` and `notes` without forcing a
-catalog diagnosis. Audio is processed for the request only and is not stored.
+chain slap) and machine sounds (spindle rattle, bearing whine, hydraulic hiss,
+motor noise) become `matchedSymptomIds`. Other findings are returned in
+`detectedLabels` and `notes` without forcing a catalog diagnosis. Audio is
+processed for the request only and is not stored.
 
 ```json
 {

@@ -12,6 +12,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useVehicles } from '../store/VehicleContext';
+import { isMachineType } from '../types';
 import { interpretFreeTextSymptom } from '../services/aiSymptomService';
 import { runDiagnosis } from '../services/diagnosisService';
 import { EmptyState } from '../components/EmptyState';
@@ -29,6 +30,12 @@ const EXAMPLES = [
   'The idle is rough and the engine sometimes stalls.',
 ];
 
+const MACHINE_EXAMPLES = [
+  'The spindle rattles at high speed and the finish looks rough.',
+  'Hydraulic pressure drops when the table is under load.',
+  'There is a burning smell and the lift moves unevenly.',
+];
+
 export function FreeTextSymptomScreen({ route, navigation }: Props) {
   const { vehicleId } = route.params;
   const { getVehicle } = useVehicles();
@@ -42,15 +49,18 @@ export function FreeTextSymptomScreen({ route, navigation }: Props) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          icon="car-outline"
-          title="Vehicle not found"
-          message="Go back to the garage and choose a vehicle."
+          icon="construct-outline"
+          title="Asset not found"
+          message="Go back to the garage and choose a vehicle or machine."
           actionLabel="Back to garage"
           onAction={() => navigation.navigate('Main', { screen: 'Garage' })}
         />
       </View>
     );
   }
+
+  const machine = isMachineType(vehicle.type);
+  const examples = machine ? MACHINE_EXAMPLES : EXAMPLES;
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -101,7 +111,8 @@ export function FreeTextSymptomScreen({ route, navigation }: Props) {
       >
         <Text style={styles.title}>Tell us what’s happening</Text>
         <Text style={styles.hint}>
-          Describe noises, smells, warning lights, or changes in how the {vehicle.type} drives.
+          Describe noises, smells, warning lights, or changes in how the{' '}
+          {machine ? 'machine runs' : vehicle.type === 'motorcycle' ? 'motorcycle rides' : 'vehicle drives'}.
           Plain language is fine — this is sent to Cloudflare Workers AI only when you tap the
           button, and Cloudflare doesn’t train on or retain it.
         </Text>
@@ -111,7 +122,11 @@ export function FreeTextSymptomScreen({ route, navigation }: Props) {
             style={styles.input}
             value={description}
             onChangeText={setDescription}
-            placeholder="e.g. There’s a squealing noise every time I brake, and it’s gotten louder over the last week…"
+            placeholder={
+              machine
+                ? 'e.g. The spindle rattles above 2,000 rpm and the surface finish has gotten worse…'
+                : 'e.g. There’s a squealing noise every time I brake, and it’s gotten louder over the last week…'
+            }
             placeholderTextColor={colors.textMuted}
             multiline
             numberOfLines={7}
@@ -127,7 +142,7 @@ export function FreeTextSymptomScreen({ route, navigation }: Props) {
 
         <Text style={styles.examplesLabel}>Need a starting point?</Text>
         <View style={styles.examples}>
-          {EXAMPLES.map((example) => (
+          {examples.map((example) => (
             <Pressable
               key={example}
               onPress={() => setDescription(example)}

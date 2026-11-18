@@ -44,9 +44,45 @@ export function renderDashboardClient(apiAccessToken: string): string {
     brakes: "Brakes",
     cooling: "Cooling",
     exhaust: "Exhaust",
-    drive_chain_clutch: "Drive, chain & clutch"
+    drive_chain_clutch: "Drive, chain & clutch",
+    spindle_drive: "Spindle & drive",
+    lubrication_coolant: "Lubrication & coolant",
+    hydraulics: "Hydraulics",
+    controls_electrical: "Controls & electrical",
+    structure_safety: "Structure & safety"
   };
   var severityLabels = { low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
+  var typeLabels = {
+    car: "Car",
+    motorcycle: "Motorcycle",
+    drilling_machine: "Drilling machine",
+    milling_machine: "Milling machine",
+    lifting_machine: "Lifting machine"
+  };
+  var typeInitials = {
+    car: "C",
+    motorcycle: "M",
+    drilling_machine: "D",
+    milling_machine: "Mi",
+    lifting_machine: "L"
+  };
+  var machineTypes = {
+    drilling_machine: true,
+    milling_machine: true,
+    lifting_machine: true
+  };
+
+  function isMachine(type) {
+    return Boolean(machineTypes[type]);
+  }
+
+  function typeLabel(type) {
+    return typeLabels[type] || "Asset";
+  }
+
+  function usageUnit(type) {
+    return isMachine(type) ? "hours" : "miles";
+  }
 
   function toast(message, isError) {
     var el = $("toast");
@@ -119,6 +155,27 @@ export function renderDashboardClient(apiAccessToken: string): string {
     $("signOutBtn").hidden = false;
   }
 
+  function setAuthMode(mode) {
+    var login = mode !== "register";
+    $("loginForm").hidden = !login;
+    $("registerForm").hidden = login;
+    $("authHint").textContent = login
+      ? "Please sign in to continue."
+      : "Create your account to continue.";
+    $("authSwitchPrompt").textContent = login ? "New to TorqueDoc?" : "Already have an account?";
+    $("authSwitchBtn").textContent = login ? "Create an account" : "Sign in";
+    $("loginError").textContent = "";
+    $("registerError").textContent = "";
+  }
+
+  function storeSession(data) {
+    sessionToken = data.token;
+    localStorage.setItem(SESSION_KEY, sessionToken);
+    state.user = data.user || null;
+    renderAccount();
+    hideLoginGate();
+  }
+
   function resetSessionState() {
     state.user = null;
     state.vehicles = [];
@@ -147,25 +204,60 @@ export function renderDashboardClient(apiAccessToken: string): string {
     var errorBox = $("loginError");
     errorBox.textContent = "";
     button.disabled = true;
-    button.textContent = "Signing in…";
+    button.textContent = "Signing in...";
     try {
       var data = await api("/auth/login", {
         method: "POST",
         noSession: true,
         body: { email: $("loginEmail").value.trim(), password: $("loginPassword").value }
       });
-      sessionToken = data.token;
-      localStorage.setItem(SESSION_KEY, sessionToken);
-      state.user = data.user || null;
       $("loginPassword").value = "";
-      renderAccount();
-      hideLoginGate();
+      storeSession(data);
       await loadVehicles();
     } catch (error) {
       errorBox.textContent = error.message;
     } finally {
       button.disabled = false;
-      button.textContent = "Sign in to service console";
+      button.textContent = "Sign In";
+    }
+  }
+
+  async function registerAccount(event) {
+    event.preventDefault();
+    var button = $("registerBtn");
+    var errorBox = $("registerError");
+    var name = $("registerName").value.trim();
+    var email = $("registerEmail").value.trim();
+    var password = $("registerPassword").value;
+    errorBox.textContent = "";
+
+    if (name.length < 2) {
+      errorBox.textContent = "Tell us your name (at least 2 characters).";
+      return;
+    }
+    if (password.length < 8) {
+      errorBox.textContent = "Password must be at least 8 characters.";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Creating account...";
+    try {
+      var data = await api("/auth/register", {
+        method: "POST",
+        noSession: true,
+        body: { displayName: name, email: email, password: password }
+      });
+      $("registerForm").reset();
+      storeSession(data);
+      setAuthMode("login");
+      await loadVehicles();
+      toast("Account created. Your garage is ready.");
+    } catch (error) {
+      errorBox.textContent = error.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Create Account";
     }
   }
 
@@ -174,6 +266,7 @@ export function renderDashboardClient(apiAccessToken: string): string {
     sessionToken = "";
     localStorage.removeItem(SESSION_KEY);
     resetSessionState();
+    setAuthMode("login");
     showLoginGate();
     if (token) {
       var headers = { "Authorization": "Bearer " + token };
@@ -187,18 +280,22 @@ export function renderDashboardClient(apiAccessToken: string): string {
   }
 
   function vehicleLabel(v) {
-    if (!v) return "Vehicle";
+    if (!v) return "Asset";
     return v.nickname ? v.nickname : (v.make + " " + v.model);
   }
 
   function vehicleSub(v) {
     if (!v) return "";
     var name = v.nickname ? (v.make + " " + v.model) : (v.year + " " + v.make + " " + v.model);
-    return name + " · " + Number(v.mileage || 0).toLocaleString() + " mi";
+    return name + " · " + formatUsage(v);
   }
 
-  function formatMiles(value) {
-    return Number(value || 0).toLocaleString() + " miles";
+  function formatUsage(v) {
+    return Number((v && v.mileage) || 0).toLocaleString() + " " + usageUnit(v && v.type);
+  }
+
+  function formatMiles(value, type) {
+    return Number(value || 0).toLocaleString() + " " + usageUnit(type);
   }
 
   function formatWhen(value) {
@@ -242,9 +339,9 @@ export function renderDashboardClient(apiAccessToken: string): string {
       box.innerHTML =
         '<div class="empty-garage">' +
           '<div class="empty-icon">+</div>' +
-          '<strong>Your service bay is empty</strong>' +
-          '<p>Add a car or motorcycle to start a private service record.</p>' +
-          '<button type="button" class="btn primary small" id="emptyAddBtn">Add your first vehicle</button>' +
+          '<strong>Your garage is empty</strong>' +
+          '<p>Add a car, motorcycle or workshop machine to start a private service record.</p>' +
+          '<button type="button" class="btn primary small" id="emptyAddBtn">Add your first asset</button>' +
         '</div>';
       $("emptyAddBtn").addEventListener("click", openAddForm);
       return;
@@ -252,15 +349,15 @@ export function renderDashboardClient(apiAccessToken: string): string {
 
     box.innerHTML = state.vehicles.map(function (v) {
       var status = vehicleStatus(v);
-      var typeLabel = v.type === "motorcycle" ? "Motorcycle" : "Car";
+      var label = typeLabel(v.type);
       return '<button type="button" class="vehicle-card' + (v.id === state.selectedId ? ' active' : '') + '" data-vehicle="' + esc(v.id) + '" data-type="' + esc(v.type) + '">' +
         '<span class="vehicle-card-top">' +
-          '<span class="vehicle-avatar" title="' + esc(typeLabel) + '">' + (v.type === "motorcycle" ? "M" : "C") + '</span>' +
+          '<span class="vehicle-avatar" title="' + esc(label) + '">' + esc(typeInitials[v.type] || "A") + '</span>' +
           '<span class="status-chip ' + esc(status.cls) + '"><i></i>' + esc(status.label) + '</span>' +
         '</span>' +
         '<span class="vehicle-name">' + esc(vehicleLabel(v)) + '</span>' +
         '<span class="vehicle-meta">' + esc(vehicleSub(v)) + '</span>' +
-        '<span class="vehicle-foot"><span class="miles">' + esc(formatMiles(v.mileage)) + '</span><span class="open-link">Open service →</span></span>' +
+        '<span class="vehicle-foot"><span class="miles">' + esc(formatMiles(v.mileage, v.type)) + '</span><span class="open-link">Open service -></span></span>' +
       '</button>';
     }).join("");
 
@@ -276,14 +373,14 @@ export function renderDashboardClient(apiAccessToken: string): string {
     if (v) {
       $("heroCopy").textContent = "A guided check for " + vehicleLabel(v) + " takes about a minute. Select the signs you notice, review ranked causes, and open repair guidance.";
       $("heroVehicle").textContent = vehicleLabel(v);
-      $("heroVehicleMeta").textContent = v.year + " " + v.make + " " + v.model + " · " + formatMiles(v.mileage);
+      $("heroVehicleMeta").textContent = v.year + " " + v.make + " " + v.model + " · " + formatUsage(v);
       $("heroDiagnoseBtn").textContent = "Run a health check";
       $("heroHistoryBtn").hidden = false;
     } else {
-      $("heroCopy").textContent = "Add your first car or motorcycle to start a private service record, run guided checks, and keep every diagnosis in one place.";
-      $("heroVehicle").textContent = "No vehicle selected";
-      $("heroVehicleMeta").textContent = "Add a vehicle to begin";
-      $("heroDiagnoseBtn").textContent = "Add your first vehicle";
+      $("heroCopy").textContent = "Add your first car, motorcycle or workshop machine to start a private service record, run guided checks, and keep every diagnosis in one place.";
+      $("heroVehicle").textContent = "No asset selected";
+      $("heroVehicleMeta").textContent = "Add an asset to begin";
+      $("heroDiagnoseBtn").textContent = "Add your first asset";
       $("heroHistoryBtn").hidden = true;
     }
   }
@@ -298,7 +395,7 @@ export function renderDashboardClient(apiAccessToken: string): string {
     });
 
     $("statVehicles").textContent = String(state.vehicles.length);
-    $("statVehiclesMeta").textContent = state.vehicles.length === 1 ? "vehicle in your care" : "vehicles in your care";
+    $("statVehiclesMeta").textContent = state.vehicles.length === 1 ? "asset in your care" : "assets in your care";
     $("statChecks").textContent = String(checks);
     $("statChecksMeta").textContent = checks === 1 ? "saved service check" : "saved service checks";
     $("statAttention").textContent = String(attention);
@@ -367,18 +464,18 @@ export function renderDashboardClient(apiAccessToken: string): string {
     $("vehicleWorkspace").hidden = !v;
 
     if (!v) {
-      $("summaryVehicle").textContent = "No vehicle selected";
+      $("summaryVehicle").textContent = "No asset selected";
       $("summaryChecks").textContent = "0";
-      $("summaryLatest").textContent = "—";
+      $("summaryLatest").textContent = "-";
       $("diagnoseBtn").disabled = true;
       return;
     }
 
     var status = vehicleStatus(v);
     $("vehicleTitle").textContent = vehicleLabel(v);
-    $("vehicleSub").textContent = v.year + " " + v.make + " " + v.model + " · " + (v.type === "motorcycle" ? "Motorcycle" : "Car");
-    $("mileagePill").textContent = formatMiles(v.mileage);
-    $("typePill").textContent = v.type === "motorcycle" ? "Motorcycle" : "Car";
+    $("vehicleSub").textContent = v.year + " " + v.make + " " + v.model + " · " + typeLabel(v.type);
+    $("mileagePill").textContent = formatMiles(v.mileage, v.type);
+    $("typePill").textContent = typeLabel(v.type);
     $("historyPill").textContent = state.history.length + (state.history.length === 1 ? " saved check" : " saved checks");
     $("vehicleStatusPill").textContent = status.label;
     $("vehicleStatusPill").className = "pill status " + status.cls;
@@ -563,7 +660,7 @@ export function renderDashboardClient(apiAccessToken: string): string {
     }).join("");
 
     showModal('<div class="modal-head"><div><h3>Saved diagnosis</h3>' +
-      '<div class="meta">' + esc(formatWhen(record.createdAt)) + ' · ' + esc(vehicle ? vehicleLabel(vehicle) : "Vehicle") + ' · ' + esc(record.source || "checklist") + '</div></div>' +
+      '<div class="meta">' + esc(formatWhen(record.createdAt)) + ' · ' + esc(vehicle ? vehicleLabel(vehicle) : "Asset") + ' · ' + esc(record.source || "checklist") + '</div></div>' +
       '<button class="btn small ghost" type="button" data-close-modal="true">Close</button></div>' +
       '<div class="results">' + (matches || '<div class="empty-note">This record has no matches.</div>') + '</div>');
 
@@ -725,16 +822,24 @@ export function renderDashboardClient(apiAccessToken: string): string {
     }
   }
 
+  function updateUsageField() {
+    var machine = isMachine($("vType").value);
+    $("vUsageLabel").textContent = machine ? "Operating hours" : "Mileage";
+    $("vMileage").placeholder = machine ? "1200" : "85000";
+  }
+
   function closeVehicleForm() {
     state.editingId = null;
     $("vehicleForm").reset();
     $("vehicleForm").hidden = true;
-    $("saveVehicleBtn").textContent = "Save vehicle";
+    $("saveVehicleBtn").textContent = "Save asset";
+    updateUsageField();
   }
 
   function openAddForm() {
     closeVehicleForm();
     $("vehicleForm").hidden = false;
+    updateUsageField();
     $("vehicleForm").scrollIntoView({ behavior: "smooth", block: "center" });
     window.setTimeout(function () { $("vMake").focus(); }, 220);
   }
@@ -750,6 +855,7 @@ export function renderDashboardClient(apiAccessToken: string): string {
     $("vMake").value = vehicle.make;
     $("vModel").value = vehicle.model;
     $("vMileage").value = String(vehicle.mileage);
+    updateUsageField();
     $("saveVehicleBtn").textContent = "Save changes";
     $("vehicleForm").hidden = false;
     $("vehicleForm").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -779,13 +885,13 @@ export function renderDashboardClient(apiAccessToken: string): string {
       $("vehicleForm").reset();
       $("vehicleForm").hidden = true;
       await loadVehicles();
-      toast(editingId ? "Vehicle details updated." : "Vehicle added to your private garage.");
+      toast(editingId ? "Asset details updated." : "Asset added to your private garage.");
       scrollToSection("service-workspace");
     } catch (error) {
       toast(error.message, true);
     } finally {
       button.disabled = false;
-      button.textContent = state.editingId ? "Save changes" : "Save vehicle";
+      button.textContent = state.editingId ? "Save changes" : "Save asset";
     }
   }
 
@@ -799,7 +905,7 @@ export function renderDashboardClient(apiAccessToken: string): string {
       state.selectedId = null;
       state.history = [];
       await loadVehicles();
-      toast("Vehicle deleted.");
+      toast("Asset deleted.");
     } catch (error) {
       toast(error.message, true);
     }
@@ -849,12 +955,18 @@ export function renderDashboardClient(apiAccessToken: string): string {
   $("addBtn").addEventListener("click", openAddForm);
   $("cancelVehicleBtn").addEventListener("click", closeVehicleForm);
   $("vehicleForm").addEventListener("submit", addVehicle);
+  $("vType").addEventListener("change", updateUsageField);
   $("editVehicleBtn").addEventListener("click", openEditForm);
   $("diagnoseBtn").addEventListener("click", runDiagnosis);
   $("deleteVehicleBtn").addEventListener("click", deleteVehicle);
   $("diagnoseTab").addEventListener("click", function () { switchTab("diagnose"); });
   $("historyTab").addEventListener("click", function () { switchTab("history"); });
   $("loginForm").addEventListener("submit", signIn);
+  $("registerForm").addEventListener("submit", registerAccount);
+  $("authSwitchBtn").addEventListener("click", function () {
+    var showLogin = !$("loginForm").hidden;
+    setAuthMode(showLogin ? "register" : "login");
+  });
   $("signOutBtn").addEventListener("click", signOut);
 
   $("heroDiagnoseBtn").addEventListener("click", function () {

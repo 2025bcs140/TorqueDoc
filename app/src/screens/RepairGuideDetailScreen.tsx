@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { fetchRepairGuide } from '../services/catalogService';
-import { RepairGuide } from '../types';
+import { RepairGuide, VehicleType, vehicleTypeLabel } from '../types';
 import { ErrorBanner } from '../components/ErrorBanner';
 import {
   categoryLabel,
@@ -23,6 +23,14 @@ import {
 } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RepairGuideDetail'>;
+
+const TYPE_ICONS: Record<VehicleType, keyof typeof Ionicons.glyphMap> = {
+  car: 'car-sport-outline',
+  motorcycle: 'bicycle-outline',
+  drilling_machine: 'construct-outline',
+  milling_machine: 'cog-outline',
+  lifting_machine: 'arrow-up-circle-outline',
+};
 
 export function RepairGuideDetailScreen({ route }: Props) {
   const { repairGuideId } = route.params;
@@ -91,11 +99,11 @@ export function RepairGuideDetailScreen({ route }: Props) {
         {guide.vehicleTypes.map((type) => (
           <View key={type} style={styles.vehicleChip}>
             <Ionicons
-              name={type === 'car' ? 'car-sport-outline' : 'bicycle-outline'}
+              name={TYPE_ICONS[type]}
               size={12}
               color={colors.textSecondary}
             />
-            <Text style={styles.vehicleChipText}>{type === 'car' ? 'Car' : 'Motorcycle'}</Text>
+            <Text style={styles.vehicleChipText}>{vehicleTypeLabel(type)}</Text>
           </View>
         ))}
       </View>
@@ -103,8 +111,9 @@ export function RepairGuideDetailScreen({ route }: Props) {
       <View style={styles.safetyCard}>
         <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
         <Text style={styles.safetyText}>
-          Work on a cool, securely supported vehicle and follow the manufacturer’s torque specs.
-          If a step feels unsafe, stop and involve a qualified mechanic.
+          Isolate power, release stored pressure, and securely support the asset before work.
+          Follow the manufacturer’s torque and lockout specs. If a step feels unsafe, stop and
+          involve a qualified technician.
         </Text>
       </View>
 
@@ -214,6 +223,7 @@ const styles = StyleSheet.create({
   },
   vehicleChips: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing(2),
     marginBottom: spacing(4),
   },

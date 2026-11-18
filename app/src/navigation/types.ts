@@ -27,4 +27,5 @@ export type RootStackParamList = {
 export type TabParamList = {
   Garage: undefined;
   Library: undefined;
+  Profile: undefined;
 };

@@ -24,8 +24,10 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CameraCapture'>;
 
-/** Keep in sync with backend MAX_UPLOAD_MB (default 30). */
-const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+/** Keep in sync with the backend MAX_VIDEO_MB (default 80). */
+const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
+/** Long enough to show a leak, smoke or wobble without a huge upload. */
+const MAX_VIDEO_SECONDS = 60;
 /** Keep this in sync with the backend's 5 MB photo limit. */
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
@@ -43,9 +45,9 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
     return (
       <View style={styles.screen}>
         <EmptyState
-          icon="car-outline"
-          title="Vehicle not found"
-          message="Go back to the garage and choose a vehicle."
+          icon="construct-outline"
+          title="Asset not found"
+          message="Go back to the garage and choose a vehicle or machine."
           actionLabel="Back to garage"
           onAction={() => navigation.navigate('Main', { screen: 'Garage' })}
         />
@@ -88,7 +90,7 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: mediaKind === 'photo' ? ['images'] : ['videos'],
         quality: 0.7,
-        videoMaxDuration: 15,
+        videoMaxDuration: MAX_VIDEO_SECONDS,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
         allowsMultipleSelection: false,
       };
@@ -101,12 +103,12 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
       if (result.canceled || !result.assets[0]) return;
 
       const selected = result.assets[0];
-      const limitBytes = mediaKind === 'photo' ? MAX_PHOTO_BYTES : MAX_UPLOAD_BYTES;
+      const limitBytes = mediaKind === 'photo' ? MAX_PHOTO_BYTES : MAX_VIDEO_BYTES;
       if (selected.fileSize && selected.fileSize > limitBytes) {
         setError(
           mediaKind === 'photo'
             ? `That photo is ${(selected.fileSize / (1024 * 1024)).toFixed(1)} MB. Photos are limited to 5 MB by the vision API; choose a smaller image or lower the camera resolution.`
-            : `That video is ${(selected.fileSize / (1024 * 1024)).toFixed(1)} MB. The limit is 30 MB — try a shorter clip or lower the resolution.`
+            : `That video is ${(selected.fileSize / (1024 * 1024)).toFixed(1)} MB. The limit is 80 MB — try a shorter clip or lower the resolution.`
         );
         return;
       }
@@ -132,6 +134,8 @@ export function CameraCaptureScreen({ route, navigation }: Props) {
         kind,
         mimeType: asset.mimeType,
         fileName: asset.fileName ?? undefined,
+        size: asset.fileSize,
+        durationMs: asset.duration ?? undefined,
         file: asset.file,
       });
 

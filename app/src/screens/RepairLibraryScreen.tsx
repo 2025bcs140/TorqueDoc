@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,7 +19,12 @@ import { fetchRepairGuides } from '../services/catalogService';
 import { RepairGuideCard } from '../components/RepairGuideCard';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorBanner } from '../components/ErrorBanner';
-import { RepairGuide, VehicleType } from '../types';
+import {
+  RepairGuide,
+  VEHICLE_TYPES,
+  VehicleType,
+  vehicleTypeLabel,
+} from '../types';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
 type Props = CompositeScreenProps<
@@ -27,9 +33,11 @@ type Props = CompositeScreenProps<
 >;
 
 const FILTERS: { label: string; value: VehicleType | 'all' }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Cars', value: 'car' },
-  { label: 'Motorcycles', value: 'motorcycle' },
+  { label: 'All assets', value: 'all' },
+  ...VEHICLE_TYPES.map((type) => ({
+    label: type === 'motorcycle' ? 'Motorcycles' : `${vehicleTypeLabel(type)}s`,
+    value: type,
+  })),
 ];
 
 export function RepairLibraryScreen({ navigation }: Props) {
@@ -44,14 +52,13 @@ export function RepairLibraryScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      // The backend serves guides per vehicle type, so fetch both and merge.
-      // A guide that applies to both appears in each response once.
-      const [car, motorcycle] = await Promise.all([
-        fetchRepairGuides('car'),
-        fetchRepairGuides('motorcycle'),
-      ]);
+      // Fetch each asset catalog and merge by guide id. Guides can apply to
+      // more than one type, so de-duplicate before sorting.
+      const catalogs = await Promise.all(
+        VEHICLE_TYPES.map((type) => fetchRepairGuides(type))
+      );
       const byId = new Map<string, RepairGuide>();
-      for (const guide of [...car, ...motorcycle]) byId.set(guide.id, guide);
+      for (const guide of catalogs.flat()) byId.set(guide.id, guide);
       setAllGuides(Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load repair guides.');
@@ -71,6 +78,7 @@ export function RepairLibraryScreen({ navigation }: Props) {
       const matchesQuery =
         normalizedQuery.length === 0 ||
         guide.title.toLowerCase().includes(normalizedQuery) ||
+        guide.category.toLowerCase().includes(normalizedQuery) ||
         guide.toolsNeeded.some((tool) => tool.toLowerCase().includes(normalizedQuery));
       return matchesType && matchesQuery;
     });
@@ -80,7 +88,7 @@ export function RepairLibraryScreen({ navigation }: Props) {
     <View style={[styles.screen, { paddingTop: insets.top + spacing(4) }]}>
       <Text style={styles.title}>Repair library</Text>
       <Text style={styles.subtitle}>
-        {allGuides.length} guides · step-by-step, with tools and realistic time estimates
+        {allGuides.length} guides - step-by-step, with tools and realistic time estimates
       </Text>
 
       <View style={styles.searchWrap}>
@@ -107,7 +115,12 @@ export function RepairLibraryScreen({ navigation }: Props) {
         )}
       </View>
 
-      <View style={styles.filterRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
+        contentContainerStyle={styles.filterRow}
+      >
         {FILTERS.map((option) => (
           <Pressable
             key={option.value}
@@ -127,7 +140,7 @@ export function RepairLibraryScreen({ navigation }: Props) {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       {error && <ErrorBanner message={error} onRetry={load} />}
 
@@ -157,8 +170,8 @@ export function RepairLibraryScreen({ navigation }: Props) {
                 title="No guides match"
                 message={
                   query.trim()
-                    ? `Nothing matched “${query.trim()}”. Try a different term or clear the search.`
-                    : 'There are no guides for this vehicle type yet.'
+                    ? `Nothing matched "${query.trim()}". Try a different term or clear the search.`
+                    : 'There are no guides for this asset type yet.'
                 }
                 actionLabel={query.trim() ? 'Clear search' : undefined}
                 onAction={query.trim() ? () => setQuery('') : undefined}
@@ -204,10 +217,13 @@ const styles = StyleSheet.create({
     ...typography.body,
     paddingVertical: spacing(3),
   },
-  filterRow: {
-    flexDirection: 'row',
-    gap: spacing(2),
+  filterScroll: {
+    flexGrow: 0,
     marginBottom: spacing(4),
+  },
+  filterRow: {
+    gap: spacing(2),
+    paddingRight: spacing(4),
   },
   filterChip: {
     paddingHorizontal: spacing(4),

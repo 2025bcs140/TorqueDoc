@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useVehicles } from '../store/VehicleContext';
+import { isMachineType } from '../types';
 import { PrescriptionCard } from '../components/PrescriptionCard';
 import { EmptyState } from '../components/EmptyState';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -15,7 +16,8 @@ export function DiagnosisResultScreen({ route, navigation }: Props) {
   const { vehicleId, matches, source, summary, diagnosisId } = route.params;
   const { getVehicle } = useVehicles();
   const vehicle = getVehicle(vehicleId);
-  const vehicleName = vehicle?.nickname ?? (vehicle ? `${vehicle.make} ${vehicle.model}` : 'this vehicle');
+  const vehicleName = vehicle?.nickname ?? (vehicle ? `${vehicle.make} ${vehicle.model}` : 'this asset');
+  const machine = vehicle ? isMachineType(vehicle.type) : false;
 
   const hasUrgent = matches.some((match) => match.cause.severity === 'urgent');
 
@@ -73,8 +75,10 @@ export function DiagnosisResultScreen({ route, navigation }: Props) {
         <View style={styles.safetyCard}>
           <Ionicons name="warning-outline" size={18} color={colors.danger} />
           <Text style={styles.safetyText}>
-            At least one possible cause is safety-relevant. If you smell fuel, see smoke, or the
-            brakes feel unsafe, stop driving and have the vehicle inspected by a professional.
+            At least one possible cause is safety-relevant.{' '}
+            {machine
+              ? 'Stop the machine, isolate power, and have it inspected by a qualified technician before returning it to service.'
+              : 'If you smell fuel, see smoke, or the brakes feel unsafe, stop driving and have the vehicle inspected by a professional.'}
           </Text>
         </View>
       )}
@@ -105,7 +109,7 @@ export function DiagnosisResultScreen({ route, navigation }: Props) {
       </View>
 
       <PrimaryButton
-        label="Back to vehicle"
+        label={machine ? 'Back to machine' : 'Back to vehicle'}
         onPress={() => navigation.navigate('VehicleDetail', { vehicleId })}
         variant="secondary"
         style={styles.backButton}

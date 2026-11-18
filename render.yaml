@@ -1,9 +1,11 @@
 # Render Blueprint for the TorqueDoc API.
 #
-# The free plan is enough to try the app from Expo Go, but its filesystem is
-# ephemeral: accounts, sessions, garages and history reset when the service
-# redeploys or wakes from sleep. For durable data, upgrade the plan and
-# uncomment the disk block below (a persistent disk requires a paid instance).
+# Free Render services still have an ephemeral filesystem, so production data
+# is stored in a free Neon Postgres database instead of /data. Create a Neon
+# project (or use the project already linked to this account), copy the pooled
+# `DATABASE_URL`, and enter it as a secret in the Render dashboard. Without
+# DATABASE_URL the service falls back to SQLite, which is suitable only for
+# local development and tests.
 services:
   - type: web
     name: torquedoc-api
@@ -17,8 +19,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DB_PATH
-        value: /data/torquedoc.db
+      # Free Neon Postgres. Use the *pooled* connection string, including
+      # `?sslmode=require`, and set it in the Render dashboard (sync: false).
+      - key: DATABASE_URL
+        sync: false
       - key: TRUST_PROXY
         value: "true"
       # Generated once by Render. Copy it into app/.env as
@@ -44,11 +48,13 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-5-5
+      # Media limits. The global Multer ceiling is 100 MB; the media routes
+      # enforce a tighter 80 MB video, 20 MB audio and 5 MB photo limit.
+      - key: MAX_UPLOAD_MB
+        value: "100"
+      - key: MAX_VIDEO_MB
+        value: "80"
       - key: CORS_ORIGIN
         value: "*"
       - key: LOG_REQUESTS
         value: "true"
-    # disk:
-    #   name: torquedoc-data
-    #   mountPath: /data
-    #   sizeGB: 1

@@ -1,15 +1,17 @@
 # Architecture
 
-TorqueDoc is a small, self-hosted vehicle diagnostic system. The Expo client is
-a thin UI over an Express API; the API owns accounts, the private garage, the
-deterministic diagnosis engine, every AI call, and all persistence.
+TorqueDoc is a small, self-hosted vehicle and workshop-machine diagnostic
+system. The Expo client is a thin UI over an Express API; the API owns accounts,
+the private garage, the deterministic diagnosis engine, every AI call, and all
+persistence.
 
 ## Goals and non-goals
 
 **Goals**
 
-- Cars and motorcycles only; trailers are intentionally out of scope.
-- Private per-account garages and diagnosis history.
+- Cars, motorcycles and workshop machines (drilling, milling and lifting);
+  trailers are intentionally out of scope.
+- Private per-account garages, profile activity and diagnosis history.
 - Five input modes: checklist, free text, photo, video, recorded sound.
 - Ranked causes with an inspectable explanation, not an opaque score.
 - Repair guides with tools, time, difficulty and numbered steps.
@@ -219,10 +221,10 @@ matched signs and totals.
 
 ### The vehicle-type filter
 
-A cause can apply to both cars and motorcycles but have different linked
-symptoms for each. The engine intersects causes and symptoms with the supplied
-vehicle type before counting. Otherwise a car-only symptom could inflate a
-motorcycle cause's coverage.
+A cause can apply to several asset types but have different linked symptoms for
+each. The engine intersects causes and symptoms with the supplied type (`car`,
+`motorcycle`, `drilling_machine`, `milling_machine` or `lifting_machine`) before
+counting. Otherwise a car-only symptom could inflate a machine cause's coverage.
 
 ## AI design
 
@@ -253,8 +255,10 @@ motorcycle cause's coverage.
 ## Media pipeline details
 
 - Photos: JPEG/PNG/WebP/GIF, 5 MB per image. MIME is checked before any AI call.
-- Video: MP4/MOV/WebM/AVI/3GP/MKV, global upload limit `MAX_UPLOAD_MB`. The app
-  records at most 15 seconds; the backend extracts up to three frames.
+- Video: MP4/MOV/WebM/AVI/3GP/MKV, `MAX_VIDEO_MB` (80 MB) within the global
+  `MAX_UPLOAD_MB` ceiling (100 MB). The app records at most 60 seconds, scales
+  its AI timeout with file size/duration, and the backend extracts up to three
+  frames.
 - Audio: MP3/WAV/M4A/AAC/OGG/WebM, 20 MB, trimmed to 30 seconds and transcoded to
   mono 16 kHz WAV. Files are uploaded as multipart `kind=audio`.
 - `application/octet-stream` is accepted only where the client cannot supply a
@@ -305,8 +309,9 @@ App.tsx
 | Shared `API_ACCESS_TOKEN` plus sessions | Cheap abuse gate for a public demo | Bundled token is not a secret |
 | Deterministic engine after AI extraction | Auditable ranking, AI cannot invent causes | AI is limited to the fixed taxonomy |
 | Coverage confidence | Explainable and testable | Not a calibrated probability |
-| Built-in `node:sqlite` | No native install headaches | Requires Node 22.5+; single writer |
-| Render free filesystem | Zero-cost public demo | Data resets on redeploy/sleep |
+| Built-in `node:sqlite` for local development | No native install headaches | Requires Node 22.5+; single writer |
+| Free Neon Postgres for hosted storage | Durable accounts and history with no card or 30-day expiry | Network round-trips; free-plan limits |
+| Render free web service | Zero-cost public demo | Ephemeral filesystem and cold starts; never used for production data |
 | Expo SDK 54 pin | Works in public-store Expo Go | Newer SDK features unavailable |
 | ffmpeg frames for video | Vision model accepts images, not raw video | Motion and audio nuance lost |
 | clef-omni typed audio questions | Structured probabilities, free-tier eligible, zero retention | Only the defined sound classes; knock/tick reported without a catalog diagnosis |
@@ -324,13 +329,13 @@ App.tsx
   ids are `404`.
 - Rate limits are per-IP and in-memory. For multiple instances, add a shared
   store and put auth behind a WAF/challenge.
-- Render's free disk is ephemeral. For durable data, mount a paid disk at
-  `/data` or move to a managed database.
+- Render's free disk is ephemeral. Hosted production uses a pooled Neon
+  Postgres `DATABASE_URL`; SQLite is only the local/test fallback.
 - The Docker image installs ffmpeg so video and sound work in production.
   Locally, install ffmpeg or expect `FFMPEG_NOT_FOUND`.
 - Uploaded media is not persisted. Diagnosis history stores ids and labels.
-- `backend/.env`, `app/.env` and SQLite files are gitignored. The web build does
-  not embed provider keys.
+- `backend/.env`, `app/.env`, SQLite files and Neon connection strings are
+  gitignored or dashboard-only. The web build does not embed provider keys.
 
 ## Testing strategy
 

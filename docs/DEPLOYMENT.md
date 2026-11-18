@@ -2,8 +2,9 @@
 
 TorqueDoc has three deployable pieces:
 
-1. **`backend/`** — the Express API, SQLite database, diagnosis engine and the
-   only place AI credentials are read. This must be reachable from the phone.
+1. **`backend/`** — the Express API, Postgres/SQLite storage, diagnosis engine
+   and the only place AI credentials are read. This must be reachable from the
+   phone.
 2. **`app/` (mobile)** — the Expo client. Expo Go can load it from a development
    server, or Gradle/EAS can produce a standalone Android build. Its API URL is
    baked in at bundle time, so deploy the backend first.
@@ -66,18 +67,33 @@ login.
    deployments, but it is a paid service and is **not** used or required by this
    project. Do not set `ANTHROPIC_API_KEY` for a free deployment; Anthropic
    cannot analyze recorded sound.
-5. Wait for the API health check at `/health` to pass. The public URL is
+5. Create a free Neon Postgres database for durable accounts, garages and
+   history:
+
+   1. Sign in at <https://neon.tech> and create a project. The free plan has no
+      card requirement and no 30-day database expiry.
+   2. Open **Connect** and copy the **pooled** connection string, including
+      `?sslmode=require`.
+   3. In Render's **Environment** tab, add `DATABASE_URL` with that value and
+      redeploy. `render.yaml` declares it as a non-synced secret, so the value
+      belongs in the dashboard rather than the repository.
+   4. Confirm `https://torquedoc-api.onrender.com/health` reports
+      `"databaseProvider": "postgres"`. Register an account, add an asset, run
+      a check, then restart the Render service and confirm the data is still
+      present.
+
+6. Wait for the API health check at `/health` to pass. The public URL is
    normally `https://torquedoc-api.onrender.com`.
-6. Copy the generated `API_ACCESS_TOKEN` value from Render if you are building
+7. Copy the generated `API_ACCESS_TOKEN` value from Render if you are building
    the mobile app yourself.
-7. In `app/.env`:
+8. In `app/.env`:
 
    ```dotenv
    EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com
    EXPO_PUBLIC_API_ACCESS_TOKEN=<the value from Render>
    ```
 
-8. Restart Expo (`Ctrl+C`, then `npx expo start`) because `EXPO_PUBLIC_*`
+9. Restart Expo (`Ctrl+C`, then `npx expo start`) because `EXPO_PUBLIC_*`
    values are inlined by Metro. Scan the QR code with Expo Go.
 
 ### Hosted web client and dashboard
@@ -120,16 +136,19 @@ injected into the web HTML.
 
 ### Important: free-plan persistence
 
-Render's free web service has an **ephemeral filesystem**. The SQLite file at
-`/data/torquedoc.db` works while the instance is running, but accounts, sessions,
-garages and history reset when the service redeploys or wakes from sleep. For
-durable data, upgrade the service to a paid instance and uncomment the disk block
-in `render.yaml` (or attach a 1 GB disk mounted at `/data` in the dashboard).
+Render's free web service has an **ephemeral filesystem**, so production does
+not use SQLite at `/data`. Accounts, sessions, garages and diagnosis history are
+stored in free **Neon Postgres** via `DATABASE_URL`. Neon's free plan is durable,
+has no 30-day database expiry, and is reached over the network, so a Render
+restart, redeploy or sleep/wake cycle does not erase data.
 
-The free instance also spins down after a period of inactivity, so the first
-request after a nap is slower. The app waits up to 75 seconds for normal calls
-and 90 seconds for AI calls to cover that cold start; a paid instance or a host
-without spin-down removes the delay.
+Without `DATABASE_URL` the backend falls back to SQLite. That is intentional for
+local development and tests, not for a public free Render deployment.
+
+The free Render instance also spins down after inactivity, so the first request
+after a nap is slower. The app waits up to 75 seconds for normal calls and up to
+200 seconds for large AI media calls to cover cold starts. The backend caps video
+analysis below its 180-second AI ceiling.
 
 ## Option B — any Docker host
 
@@ -139,14 +158,15 @@ Build from the repository root:
 docker build -f backend/Dockerfile -t torquedoc-api ./backend
 ```
 
-Run with a named volume so SQLite survives container replacement:
+For durable storage, pass a Postgres connection string (Neon or another
+provider). The named-volume SQLite example remains useful for an offline demo:
 
 ```bash
 docker volume create torquedoc-data
 docker run --rm -p 3000:3000 \
   -v torquedoc-data:/data \
   -e PORT=3000 \
-  -e DB_PATH=/data/torquedoc.db \
+  -e DATABASE_URL=postgresql://user:password@host/db?sslmode=require \
   -e API_ACCESS_TOKEN=replace-with-a-random-32-character-value \
   -e CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id \
   -e CLOUDFLARE_API_TOKEN=your-workers-ai-token \
@@ -186,7 +206,8 @@ A healthy response looks like:
 | Variable | Required on a public host | Notes |
 |---|---|---|
 | `PORT` | Usually provided by the host | Render sets this automatically. |
-| `DB_PATH` | Yes | Use a path on the persistent volume, e.g. `/data/torquedoc.db`. |
+| `DATABASE_URL` | Yes on Render | Pooled Neon/Postgres URL with `?sslmode=require`. Enables durable hosted storage. |
+| `DB_PATH` | Local fallback only | SQLite path used only when `DATABASE_URL` is unset. Relative paths resolve from `backend/`. |
 | `API_ACCESS_TOKEN` | Strongly recommended | 16+ characters. The app sends it as `X-TorqueDoc-Key`. This is an abuse gate, not a password. |
 | `TRUST_PROXY` | Yes behind a proxy | Makes rate limiting use `X-Forwarded-For` correctly. |
 | `CLOUDFLARE_ACCOUNT_ID` | For AI features | 32-character Cloudflare account id. |
@@ -195,8 +216,10 @@ A healthy response looks like:
 | `CLOUDFLARE_VISION_MODEL` | Optional | Separate vision model id; defaults to `CLOUDFLARE_MODEL`. |
 | `CLOUDFLARE_AUDIO_MODEL` | Optional | Defaults to `@cf/cloudflare/clef-omni`; used only for recorded sound. |
 | `ANTHROPIC_API_KEY` | Optional fallback | Server-side only. Cloudflare is preferred when both are configured. Anthropic cannot analyze audio. |
+| `PUBLIC_APP_URL` | Optional | Public origin used for referral links, e.g. `https://torquedoc-api.onrender.com`. Defaults to the request origin. |
 | `CORS_ORIGIN` | Optional | Keep `*` for the mobile app and Render static site, or narrow it to your web origin. |
-| `MAX_UPLOAD_MB` | Optional | Default 30 MB. Photos are separately capped at 5 MB and audio at 20 MB (30 seconds). |
+| `MAX_UPLOAD_MB` | Optional | Default 100 MB overall upload ceiling. Photos are capped at 5 MB, audio at 20 MB, and video uses `MAX_VIDEO_MB`. |
+| `MAX_VIDEO_MB` | Optional | Default 80 MB video upload limit. The app records up to 60 seconds and scales its AI timeout with file size/duration. |
 | `RATE_LIMIT_PER_MINUTE` | Optional | Default 240 requests/minute per IP. |
 | `AI_RATE_LIMIT_PER_MINUTE` | Optional | Default 10 AI requests/minute per IP. |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | Optional | Default 12 register/login requests/minute per IP. |
@@ -213,9 +236,11 @@ A healthy response looks like:
 - [ ] `/health` passes and `ai.configured`, `videoAnalysis` and `audioAnalysis`
       are what you expect.
 - [ ] Accounts and garages are private per user. Use distinct test accounts to
-      confirm one account cannot see another's vehicles or history.
-- [ ] You understand that a free Render filesystem is ephemeral and can reset
-      all accounts, garages and history. Attach a disk for durable data.
+      confirm one account cannot see another's assets or history.
+- [ ] `DATABASE_URL` points at the intended Neon database. Restart the Render
+      service and verify an account, garage asset and diagnosis survive.
+- [ ] You understand that Render's free filesystem is ephemeral; do not rely on
+      SQLite for hosted production data.
 
 ## Building the app for stores
 

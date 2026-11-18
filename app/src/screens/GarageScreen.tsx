@@ -37,9 +37,16 @@ type Props = CompositeScreenProps<
 
 export function GarageScreen({ navigation }: Props) {
   const { vehicles, loading, error, refresh } = useVehicles();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const firstName = user?.displayName.split(' ')[0] || 'driver';
+  const initials =
+    user?.displayName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'TD';
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing(3) }]}>
@@ -76,20 +83,20 @@ export function GarageScreen({ navigation }: Props) {
                   <Text style={styles.brand}>TORQUEDOC</Text>
                 </View>
                 <Pressable
-                  onPress={() => void signOut()}
-                  style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}
+                  onPress={() => navigation.navigate('Profile')}
+                  style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]}
                   accessibilityRole="button"
-                  accessibilityLabel="Sign out"
+                  accessibilityLabel="Open profile"
                 >
-                  <Ionicons name="log-out-outline" size={18} color={colors.textSecondary} />
+                  <Text style={styles.profileInitials}>{initials}</Text>
                 </Pressable>
               </View>
 
               <Text style={styles.greeting}>Welcome back, {firstName}.</Text>
               <Text style={styles.heroSub}>
                 {vehicles.length === 0
-                  ? 'Add your first car or motorcycle to start diagnosing.'
-                  : `${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'} ready for a health check.`}
+                  ? 'Add your first car, motorcycle or workshop machine to start diagnosing.'
+                  : `${vehicles.length} ${vehicles.length === 1 ? 'asset' : 'assets'} ready for a health check.`}
               </Text>
 
               <View style={styles.heroStats}>
@@ -113,13 +120,13 @@ export function GarageScreen({ navigation }: Props) {
             <View style={styles.sectionHead}>
               <View>
                 <Text style={styles.sectionEyebrow}>YOUR GARAGE</Text>
-                <Text style={styles.sectionTitle}>Vehicles</Text>
+                <Text style={styles.sectionTitle}>Assets</Text>
               </View>
               <Pressable
                 style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
                 onPress={() => navigation.navigate('AddVehicle')}
                 accessibilityRole="button"
-                accessibilityLabel="Add a vehicle"
+                accessibilityLabel="Add a garage asset"
               >
                 <Ionicons name="add" size={22} color={colors.background} />
                 <Text style={styles.addLabel}>Add</Text>
@@ -138,10 +145,10 @@ export function GarageScreen({ navigation }: Props) {
             <ActivityIndicator color={colors.accent} style={styles.loader} />
           ) : !error ? (
             <EmptyState
-              icon="car-sport-outline"
+              icon="construct-outline"
               title="Your garage is empty"
-              message="Add a car or motorcycle to start diagnosing issues and keeping a repair history."
-              actionLabel="Add your first vehicle"
+              message="Add a car, motorcycle or workshop machine to start diagnosing issues and keeping a repair history."
+              actionLabel="Add your first asset"
               onAction={() => navigation.navigate('AddVehicle')}
             />
           ) : null
@@ -211,15 +218,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 2,
   },
-  signOut: {
+  profileButton: {
     width: 38,
     height: 38,
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(8, 13, 19, 0.45)',
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderColor: 'rgba(255, 176, 32, 0.35)',
+  },
+  profileInitials: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   greeting: {
     ...typography.heading,

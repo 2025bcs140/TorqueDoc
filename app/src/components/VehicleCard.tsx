@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Vehicle } from '../types';
+import { Vehicle, VehicleType, isMachineType, vehicleTypeLabel } from '../types';
 import { colors, gradients, radii, shadows, spacing, typography } from '../theme/tokens';
 
 interface Props {
@@ -10,17 +10,26 @@ interface Props {
   onPress: () => void;
 }
 
+const TYPE_ICONS: Record<VehicleType, keyof typeof Ionicons.glyphMap> = {
+  car: 'car-sport',
+  motorcycle: 'bicycle',
+  drilling_machine: 'construct',
+  milling_machine: 'cog',
+  lifting_machine: 'arrow-up-circle',
+};
+
 export function VehicleCard({ vehicle, onPress }: Props) {
-  const icon = vehicle.type === 'car' ? 'car-sport' : 'bicycle';
+  const icon = TYPE_ICONS[vehicle.type];
   const title = vehicle.nickname ?? `${vehicle.make} ${vehicle.model}`;
+  const unit = isMachineType(vehicle.type) ? 'hr' : 'mi';
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`${title}, ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.mileage.toLocaleString()} miles`}
-      accessibilityHint="Opens this vehicle"
+      accessibilityLabel={`${title}, ${vehicle.year} ${vehicle.make} ${vehicle.model}, ${vehicle.mileage.toLocaleString()} ${isMachineType(vehicle.type) ? 'hours' : 'miles'}`}
+      accessibilityHint="Opens this garage asset"
     >
       <LinearGradient
         colors={gradients.card}
@@ -40,9 +49,9 @@ export function VehicleCard({ vehicle, onPress }: Props) {
           {vehicle.year} {vehicle.make} {vehicle.model}
         </Text>
         <View style={styles.metaRow}>
-          <Text style={styles.typeTag}>{vehicle.type === 'car' ? 'CAR' : 'MOTO'}</Text>
+          <Text style={styles.typeTag}>{vehicleTypeLabel(vehicle.type).toUpperCase()}</Text>
           <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.meta}>{vehicle.mileage.toLocaleString()} mi</Text>
+          <Text style={styles.meta}>{vehicle.mileage.toLocaleString()} {unit}</Text>
         </View>
       </View>
       <View style={styles.right}>
