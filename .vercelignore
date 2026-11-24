@@ -1,0 +1,20 @@
+# Vercel builds only the Expo web client. The API stays on Render.
+backend/
+docs/
+android/
+ios/
+**/node_modules/
+**/.expo/
+app/dist/
+
+# Never upload local secrets or databases.
+.env
+.env.*
+!/.env.example
+app/.env
+app/.env.*
+!app/.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

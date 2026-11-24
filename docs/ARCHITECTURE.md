@@ -312,6 +312,7 @@ App.tsx
 | Built-in `node:sqlite` for local development | No native install headaches | Requires Node 22.5+; single writer |
 | Free Neon Postgres for hosted storage | Durable accounts and history with no card or 30-day expiry | Network round-trips; free-plan limits |
 | Render free web service | Zero-cost public demo | Ephemeral filesystem and cold starts; never used for production data |
+| Vercel static web frontend | CDN delivery and preview deployments for the Expo web build | API, media processing and storage stay on Render; the bundle contains the abuse-gate key |
 | Expo SDK 54 pin | Works in public-store Expo Go | Newer SDK features unavailable |
 | ffmpeg frames for video | Vision model accepts images, not raw video | Motion and audio nuance lost |
 | clef-omni typed audio questions | Structured probabilities, free-tier eligible, zero retention | Only the defined sound classes; knock/tick reported without a catalog diagnosis |

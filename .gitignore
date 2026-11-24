@@ -3,6 +3,7 @@ node_modules/
 
 # Builds and Expo
 dist/
+.vercel/
 .expo/
 app/.expo/
 .expo-export-check/

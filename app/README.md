@@ -65,6 +65,11 @@ allow Node.js through the Windows firewall on port 3000.
 after changing `.env` (and reload the app). If the URL is malformed, the app
 shows a clear error instead of a generic network failure.
 
+For the web build on Vercel, add the same two variables in the Vercel project's
+environment settings and redeploy. The root `vercel.json` builds this folder and
+publishes `dist`; the Render API remains the backend. See
+[`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md#option-c--vercel-web-frontend-api-on-render).
+
 The access token is bundled into the app. It is an abuse gate for a public URL,
 **not** user authentication. The signed-in account provides the real
 authorization. See [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for hosting

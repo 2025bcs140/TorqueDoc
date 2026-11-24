@@ -204,8 +204,8 @@ missing. An unreadable audio clip returns `422 AUDIO_UNREADABLE`.
 - [`docs/API.md`](docs/API.md) — endpoints, payloads, errors and media details.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — storage, security, diagnosis
   engine and trade-offs.
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Render + Neon setup, Cloudflare AI
-  configuration, hosted web build and verification.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Render + Neon setup, Vercel web
+  hosting, Cloudflare AI configuration, hosted web build and verification.
 - [`app/README.md`](app/README.md) — Expo client setup, screens, permissions and
   troubleshooting.
 
@@ -280,12 +280,18 @@ npx expo export --platform web --output-dir '..\backend\web-dist' --clear
 
 ## Hosted deployment
 
-The public deployment serves the app at `/app`, an account dashboard at
-`/dashboard`, and a health check at `/health`:
+The API, account dashboard and fallback web client are deployed on Render. The
+same Expo web client can also be hosted on Vercel for CDN delivery and preview
+deployments:
 
-- App: `https://torquedoc-api.onrender.com/app`
+- App (Render fallback): `https://torquedoc-api.onrender.com/app`
+- App (Vercel, optional): `https://<project>.vercel.app`
 - Dashboard: `https://torquedoc-api.onrender.com/dashboard`
 - Health: `https://torquedoc-api.onrender.com/health`
+
+The API must stay on Render (or another long-running container host). Vercel
+serves the static web client only; its serverless request limits are too small
+for TorqueDoc's media uploads, ffmpeg processing and longer AI calls.
 
 Render's free filesystem is ephemeral, so hosted accounts, garages and history
 are stored in a free Neon Postgres database:
@@ -301,6 +307,25 @@ are stored in a free Neon Postgres database:
 `render.yaml` declares `DATABASE_URL` as a secret, so the value is entered in
 the Render dashboard rather than committed. The local backend and tests keep
 using SQLite automatically when `DATABASE_URL` is unset.
+
+### Vercel web frontend
+
+The repository includes a root `vercel.json` that installs `app/`, runs the Expo
+web export and publishes `app/dist`. To deploy it:
+
+1. Import the GitHub repository into Vercel and keep the project root at the
+   repository root. The build settings come from `vercel.json`.
+2. Add these environment variables for **Production** and **Preview**:
+   - `EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com`
+   - `EXPO_PUBLIC_API_ACCESS_TOKEN=<the same API_ACCESS_TOKEN used by Render>`
+3. Deploy. The Vercel URL opens the app directly; `/app` also rewrites to it.
+4. Optionally set Render's `PUBLIC_APP_URL` to the Vercel URL so referral links
+   point at the Vercel deployment.
+
+Only the two public `EXPO_PUBLIC_*` variables belong in Vercel. Never put
+`DATABASE_URL`, `CLOUDFLARE_API_TOKEN` or `ANTHROPIC_API_KEY` there. If you
+narrow Render's `CORS_ORIGIN`, include the Vercel production domain. See
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full checklist.
 
 ## Troubleshooting
 
@@ -399,9 +424,11 @@ TorqueDoc/
 ├── docs/
 │   ├── API.md                     endpoint reference
 │   ├── ARCHITECTURE.md            design decisions and data flow
-│   ├── DEPLOYMENT.md              Render, Neon and Cloudflare deployment
+│   ├── DEPLOYMENT.md              Render, Neon, Vercel and Cloudflare deployment
 │   └── USER_GUIDE.md              end-user walkthrough and troubleshooting
 ├── README.md
+├── vercel.json                    static Expo web build for Vercel
+├── .vercelignore
 └── .gitignore
 ```
 
