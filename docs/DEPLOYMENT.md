@@ -215,9 +215,11 @@ functions.
 
 1. Deploy the API first with **Option A** and note its public URL and
    `API_ACCESS_TOKEN`.
-2. Import the GitHub repository into Vercel. Keep the **Root Directory** at the
-   repository root (`./`); the root `vercel.json` handles the `app/` subfolder.
-   Its settings are:
+2. Import the GitHub repository into Vercel, or deploy from the CLI with
+   `npx vercel link --yes --project torquedoc` and then
+   `npx vercel deploy --prod` after adding the variables in step 3. Keep the
+   **Root Directory** at the repository root (`./`); the root `vercel.json`
+   handles the `app/` subfolder. Its settings are:
    - install: `cd app && npm ci`
    - build: `cd app && npm run export:web`
    - output: `app/dist`
@@ -232,8 +234,11 @@ functions.
    Do not add `DATABASE_URL`, `CLOUDFLARE_*` or `ANTHROPIC_API_KEY` to Vercel.
    The static client only needs the public API URL and the shared abuse-gate
    key. Provider and database credentials stay on Render.
-4. Open the Vercel production URL. It serves the app at `/`; `/app` also
-   rewrites to the app. The account dashboard remains at
+4. Open the Vercel production URL. The current deployment is
+   `https://torquedoc-swart.vercel.app`; it serves the app at `/` and `/app`
+   also rewrites to the app. If Vercel Authentication is enabled under
+   **Project Settings → Deployment Protection**, disable it for a public app.
+   The account dashboard remains at
    `https://torquedoc-api.onrender.com/dashboard`.
 5. Render currently sets `CORS_ORIGIN=*`, which covers Vercel preview and
    production URLs. If you narrow it, include each Vercel origin you use
@@ -245,6 +250,9 @@ functions.
    variable, redeploy the Vercel project; restarting is not enough. If you
    rotate `API_ACCESS_TOKEN`, update Render and Vercel together, then rebuild
    any installed mobile binary.
+
+The CLI flow deploys on demand. Connect the GitHub repository in Vercel if you
+want pushes to `main` to create production deployments automatically.
 
 The committed `backend/web-dist` build remains available as a Render fallback.
 Vercel builds a fresh `app/dist` from source, so it does not depend on that

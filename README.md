@@ -280,12 +280,11 @@ npx expo export --platform web --output-dir '..\backend\web-dist' --clear
 
 ## Hosted deployment
 
-The API, account dashboard and fallback web client are deployed on Render. The
-same Expo web client can also be hosted on Vercel for CDN delivery and preview
-deployments:
+The API and account dashboard are deployed on Render. The Expo web client is
+deployed on Vercel, with the Render `/app` build kept as a fallback:
 
+- App (Vercel): `https://torquedoc-swart.vercel.app`
 - App (Render fallback): `https://torquedoc-api.onrender.com/app`
-- App (Vercel, optional): `https://<project>.vercel.app`
 - Dashboard: `https://torquedoc-api.onrender.com/dashboard`
 - Health: `https://torquedoc-api.onrender.com/health`
 
@@ -311,16 +310,19 @@ using SQLite automatically when `DATABASE_URL` is unset.
 ### Vercel web frontend
 
 The repository includes a root `vercel.json` that installs `app/`, runs the Expo
-web export and publishes `app/dist`. To deploy it:
+web export and publishes `app/dist`. The current production deployment is
+`https://torquedoc-swart.vercel.app`. To deploy it:
 
 1. Import the GitHub repository into Vercel and keep the project root at the
-   repository root. The build settings come from `vercel.json`.
+   repository root. If GitHub is not connected to Vercel yet, deploy from the
+   CLI instead: `npx vercel link --yes --project torquedoc` followed by
+   `npx vercel deploy --prod`. The build settings come from `vercel.json`.
 2. Add these environment variables for **Production** and **Preview**:
    - `EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com`
    - `EXPO_PUBLIC_API_ACCESS_TOKEN=<the same API_ACCESS_TOKEN used by Render>`
 3. Deploy. The Vercel URL opens the app directly; `/app` also rewrites to it.
 4. Optionally set Render's `PUBLIC_APP_URL` to the Vercel URL so referral links
-   point at the Vercel deployment.
+   point at the Vercel deployment. The API and dashboard stay on Render.
 
 Only the two public `EXPO_PUBLIC_*` variables belong in Vercel. Never put
 `DATABASE_URL`, `CLOUDFLARE_API_TOKEN` or `ANTHROPIC_API_KEY` there. If you
