@@ -56,5 +56,9 @@ services:
         value: "80"
       - key: CORS_ORIGIN
         value: "*"
+      # Primary browser app used for referral links. Change this if you use a
+      # custom domain or a different Vercel project.
+      - key: PUBLIC_APP_URL
+        value: https://torquedoc-swart.vercel.app
       - key: LOG_REQUESTS
         value: "true"

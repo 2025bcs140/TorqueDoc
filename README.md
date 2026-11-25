@@ -321,8 +321,9 @@ web export and publishes `app/dist`. The current production deployment is
    - `EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com`
    - `EXPO_PUBLIC_API_ACCESS_TOKEN=<the same API_ACCESS_TOKEN used by Render>`
 3. Deploy. The Vercel URL opens the app directly; `/app` also rewrites to it.
-4. Optionally set Render's `PUBLIC_APP_URL` to the Vercel URL so referral links
-   point at the Vercel deployment. The API and dashboard stay on Render.
+4. `render.yaml` sets Render's `PUBLIC_APP_URL` to the Vercel URL so referral
+   links point at the Vercel app. Change it if you use a custom domain. The API
+   and dashboard stay on Render.
 
 Only the two public `EXPO_PUBLIC_*` variables belong in Vercel. Never put
 `DATABASE_URL`, `CLOUDFLARE_API_TOKEN` or `ANTHROPIC_API_KEY` there. If you
