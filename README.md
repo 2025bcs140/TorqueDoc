@@ -311,16 +311,19 @@ using SQLite automatically when `DATABASE_URL` is unset.
 
 The repository includes a root `vercel.json` that installs `app/`, runs the Expo
 web export and publishes `app/dist`. The current production deployment is
-`https://torquedoc-swart.vercel.app`. To deploy it:
+`https://torquedoc-swart.vercel.app`; the Vercel project is linked to
+`2025bcs140/TorqueDoc` with production branch `main`, so pushes to `main` deploy
+automatically. To reproduce or deploy manually:
 
 1. Import the GitHub repository into Vercel and keep the project root at the
-   repository root. If GitHub is not connected to Vercel yet, deploy from the
-   CLI instead: `npx vercel link --yes --project torquedoc` followed by
+   repository root. For a one-off deployment, the CLI fallback is
+   `npx vercel link --yes --project torquedoc` followed by
    `npx vercel deploy --prod`. The build settings come from `vercel.json`.
 2. Add these environment variables for **Production** and **Preview**:
    - `EXPO_PUBLIC_API_BASE_URL=https://torquedoc-api.onrender.com`
    - `EXPO_PUBLIC_API_ACCESS_TOKEN=<the same API_ACCESS_TOKEN used by Render>`
-3. Deploy. The Vercel URL opens the app directly; `/app` also rewrites to it.
+3. Push to `main` (or deploy from the CLI). The Vercel URL opens the app
+   directly; `/app` also rewrites to it.
 4. `render.yaml` sets Render's `PUBLIC_APP_URL` to the Vercel URL so referral
    links point at the Vercel app. Change it if you use a custom domain. The API
    and dashboard stay on Render.

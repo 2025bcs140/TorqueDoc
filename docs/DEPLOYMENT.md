@@ -215,11 +215,13 @@ functions.
 
 1. Deploy the API first with **Option A** and note its public URL and
    `API_ACCESS_TOKEN`.
-2. Import the GitHub repository into Vercel, or deploy from the CLI with
-   `npx vercel link --yes --project torquedoc` and then
-   `npx vercel deploy --prod` after adding the variables in step 3. Keep the
-   **Root Directory** at the repository root (`./`); the root `vercel.json`
-   handles the `app/` subfolder. Its settings are:
+2. Import the GitHub repository into Vercel. The current project is linked to
+   `2025bcs140/TorqueDoc` with production branch `main`; pushes to `main`
+   auto-deploy. Keep the **Root Directory** at the repository root (`./`); the
+   root `vercel.json` handles the `app/` subfolder. For a one-off CLI deploy,
+   use `npx vercel link --yes --project torquedoc` and
+   `npx vercel deploy --prod` after adding the variables in step 3. Its
+   settings are:
    - install: `cd app && npm ci`
    - build: `cd app && npm run export:web`
    - output: `app/dist`
@@ -252,8 +254,8 @@ functions.
    rotate `API_ACCESS_TOKEN`, update Render and Vercel together, then rebuild
    any installed mobile binary.
 
-The CLI flow deploys on demand. Connect the GitHub repository in Vercel if you
-want pushes to `main` to create production deployments automatically.
+The Vercel project is Git-linked, so pushes to `main` create production
+deployments automatically. The CLI flow remains available for one-off deploys.
 
 The committed `backend/web-dist` build remains available as a Render fallback.
 Vercel builds a fresh `app/dist` from source, so it does not depend on that
